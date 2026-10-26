@@ -1,0 +1,405 @@
+﻿@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system â€” "Deep Space" portfolio.
+ * Dark-only theme: a starfield at night. All colors in oklch.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-starlight: var(--starlight);
+  --color-nebula: var(--nebula);
+  --color-comet: var(--comet);
+  --color-aurora: var(--aurora);
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --radius: 0.75rem;
+  /* Deep space navy, never pure black */
+  --background: oklch(0.1 0.02 270);
+  --foreground: oklch(0.93 0.015 260);
+  --card: oklch(0.14 0.025 270);
+  --card-foreground: oklch(0.93 0.015 260);
+  --popover: oklch(0.14 0.025 270);
+  --popover-foreground: oklch(0.93 0.015 260);
+  /* Warm stellar gold â€” the sun at the center of the system */
+  --primary: oklch(0.82 0.15 95);
+  --primary-foreground: oklch(0.16 0.03 270);
+  --secondary: oklch(0.18 0.03 270);
+  --secondary-foreground: oklch(0.9 0.02 260);
+  --muted: oklch(0.18 0.03 270);
+  --muted-foreground: oklch(0.65 0.03 265);
+  --accent: oklch(0.22 0.045 275);
+  --accent-foreground: oklch(0.93 0.015 260);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(0.95 0.01 260);
+  --border: oklch(0.25 0.03 270 / 60%);
+  --input: oklch(0.25 0.03 270 / 60%);
+  --ring: oklch(0.82 0.15 95);
+  /* Accent hues for planets and glows */
+  --starlight: oklch(0.85 0.12 95);
+  --nebula: oklch(0.55 0.16 290);
+  --comet: oklch(0.7 0.14 200);
+  --aurora: oklch(0.72 0.15 160);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--primary-foreground);
+  }
+}
+
+/* Soft stellar glow for headline text */
+@utility text-glow {
+  text-shadow:
+    0 0 24px color-mix(in oklab, var(--primary) 55%, transparent),
+    0 0 80px color-mix(in oklab, var(--primary) 25%, transparent);
+}
+
+/* Frosted glass panel for HUD cards over the canvas â€” kept light so the
+   universe stays visible behind it */
+@utility glass-panel {
+  background: color-mix(in oklab, var(--background) 62%, transparent);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+  box-shadow: 0 12px 48px -16px oklch(0 0 0 / 55%);
+}
+
+/* Same look without backdrop-filter, for the cards that repeat.
+   Every blurred region has to be re-composited whenever the WebGL canvas
+   behind it draws a frame, so ~20 of them tanked the frame rate; these use a
+   denser flat tint instead and are indistinguishable in motion. */
+@utility panel {
+  background: color-mix(in oklab, var(--background) 86%, transparent);
+  border: 1px solid color-mix(in oklab, var(--foreground) 10%, transparent);
+  box-shadow: 0 12px 48px -16px oklch(0 0 0 / 55%);
+}
+
+/* Slow pulse for the "scroll" hint */
+@utility animate-drift {
+  animation: drift 6s ease-in-out infinite;
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+/* Twinkling star dots used in section dividers */
+@utility animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---- Intro launch sequence (plays on every load / reload) ---- */
+/* Transform + opacity only: animating `filter: blur()` across a full-screen
+   WebGL layer forced a re-blur of the whole canvas on every frame of the intro. */
+@keyframes intro-zoom {
+  0% {
+    transform: scale(1.6);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@utility animate-intro-zoom {
+  animation: intro-zoom 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes intro-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@utility animate-intro-up {
+  animation: intro-fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes intro-overlay-out {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@utility animate-intro-overlay {
+  animation: intro-overlay-out 0.9s ease 1.6s both;
+}
+
+@keyframes intro-bar {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+@utility animate-intro-bar {
+  animation: intro-bar 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+@keyframes intro-logo {
+  0% {
+    opacity: 0;
+    letter-spacing: 0.6em;
+  }
+  100% {
+    opacity: 1;
+    letter-spacing: 0.35em;
+  }
+}
+@utility animate-intro-logo {
+  animation: intro-logo 1.1s ease-out both;
+}
+
+/* Floating planet name labels rendered in-world */
+.planet-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: color-mix(in oklab, var(--foreground) 70%, transparent);
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+.planet-label-active {
+  color: var(--primary);
+  border-color: color-mix(in oklab, var(--primary) 50%, transparent);
+  background: color-mix(in oklab, var(--background) 70%, transparent);
+}
+
+/* Lightweight alien cursor; position updates are driven by requestAnimationFrame. */
+.alien-cursor {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  width: 38px;
+  height: 38px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 8px #8cff8b99);
+  will-change: transform;
+}
+.alien-cursor svg { display: block; width: 100%; height: 100%; }
+/* `cursor` inherits, so setting it on the root covers almost everything; only
+   the elements the UA stylesheet gives their own cursor need listing. Matching
+   `body *` instead made every style recalculation walk the whole tree. */
+@media (pointer: fine) {
+  html,
+  body,
+  a,
+  button,
+  input,
+  textarea,
+  select,
+  label,
+  summary,
+  [role="button"] {
+    cursor: none !important;
+  }
+}
+@media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .alien-cursor { display: none; }
+}
+
+/* Optional 10 second solar system destruction visual. GPU-friendly transform/opacity only. */
+.destruction-effect {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  animation: destruction-return 10s ease both;
+}
+.destruction-effect::before {
+  position: absolute;
+  inset: 0;
+  background: #06040a;
+  content: "";
+  animation: destruction-darken 10s ease both;
+}
+.destruction-effect__asteroid {
+  position: absolute;
+  top: 12%;
+  left: 88%;
+  width: clamp(34px, 5vw, 68px);
+  aspect-ratio: 1;
+  border-radius: 38% 62% 45% 55%;
+  background: radial-gradient(circle at 32% 28%, #ffd48a 0 8%, #9a573d 14%, #45303b 60%, #171421 100%);
+  box-shadow: 0 0 24px #ff8f4c99, -35px 25px 18px -14px #ff9b5a88;
+  animation: asteroid-impact 2.15s cubic-bezier(.4, 0, .8, .2) both;
+}
+.destruction-effect__asteroid span {
+  position: absolute;
+  inset: 22% 18%;
+  border: 3px solid #211e28;
+  border-radius: 50%;
+  transform: rotate(-25deg);
+}
+.destruction-effect__blast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12vmin;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, white 0 3%, #fff6b0 8%, #ffb23f 22%, #ff5d35 38%, #9f2f7a 58%, transparent 72%);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.05);
+  animation: sun-explode 10s ease-out 2s both;
+}
+.destruction-effect__debris { position: absolute; inset: 0; }
+.destruction-effect__debris i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--primary);
+  box-shadow: 0 0 14px #ff9d43;
+  opacity: 0;
+  animation: debris-fly 2.5s ease-out 2.08s both;
+}
+.destruction-effect__debris i:nth-child(2) { --dx: 34vw; --dy: -25vh; background: #fb6845; }
+.destruction-effect__debris i:nth-child(3) { --dx: -40vw; --dy: -18vh; animation-delay: 2.12s; }
+.destruction-effect__debris i:nth-child(4) { --dx: 28vw; --dy: 34vh; animation-delay: 2.16s; background: #ff784a; }
+.destruction-effect__debris i:nth-child(5) { --dx: -32vw; --dy: 30vh; animation-delay: 2.1s; }
+.destruction-effect__debris i:nth-child(6) { --dx: 8vw; --dy: -42vh; animation-delay: 2.14s; background: #fff1a3; }
+.destruction-effect__debris i:nth-child(7) { --dx: -12vw; --dy: 40vh; animation-delay: 2.18s; }
+.destruction-effect__debris i:nth-child(8) { --dx: 42vw; --dy: 5vh; animation-delay: 2.11s; background: #cf7bff; }
+.destruction-effect__debris i:nth-child(1) { --dx: -42vw; --dy: 2vh; }
+.destruction-effect__message {
+  position: absolute;
+  top: 72%;
+  width: 100%;
+  color: #ffd36a;
+  font: 600 11px/1 ui-monospace, monospace;
+  letter-spacing: .3em;
+  text-align: center;
+  opacity: 0;
+  animation: reboot-message 10s ease both;
+}
+@keyframes asteroid-impact {
+  0% { transform: translate(0, 0) rotate(0) scale(.75); }
+  82% { transform: translate(-34vw, 28vh) rotate(380deg) scale(1.15); }
+  100% { transform: translate(-36vw, 30vh) rotate(430deg) scale(.15); opacity: 0; }
+}
+@keyframes sun-explode {
+  0%, 20% { opacity: 0; transform: translate(-50%, -50%) scale(.05); }
+  23% { opacity: 1; transform: translate(-50%, -50%) scale(1.8); }
+  42% { opacity: .9; transform: translate(-50%, -50%) scale(15); }
+  58% { opacity: .75; transform: translate(-50%, -50%) scale(22); }
+  82% { opacity: .35; transform: translate(-50%, -50%) scale(28); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(32); }
+}
+@keyframes debris-fly {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.2) rotate(0); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.4) rotate(720deg); }
+}
+@keyframes destruction-darken {
+  0%, 20% { opacity: 0; }
+  23% { opacity: .72; }
+  35% { opacity: .25; }
+  52% { opacity: .78; }
+  75% { opacity: .42; }
+  100% { opacity: 0; }
+}
+@keyframes destruction-return {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes reboot-message {
+  0%, 38% { opacity: 0; }
+  45%, 72% { opacity: .9; }
+  100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .destruction-effect { animation-duration: 2s; }
+  .destruction-effect__asteroid, .destruction-effect__blast, .destruction-effect__debris i { animation-duration: 2s; }
+  .destruction-effect__blast { animation-delay: 0s; }
+  .destruction-effect__debris i { animation-delay: 0s; }
+}
