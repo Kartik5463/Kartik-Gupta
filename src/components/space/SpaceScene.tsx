@@ -10,6 +10,19 @@ import {
   type ProjectPlanet,
 } from "./planets";
 import { spaceStore, useSpace } from "./store";
+import {
+  easeInCubic,
+  WAVE_SPEED,
+  easeOutBack,
+  easeOutQuint,
+  elapsed,
+  jitter,
+  knockTime,
+  PHASE,
+  progress,
+  pulse,
+  smoothstep,
+} from "./destruction";
 
 /* ---------- quality tiers ----------
    Everything expensive is sized from one tier decided at mount, so low-end
@@ -171,6 +184,20 @@ function makeGlowTexture() {
   return tex;
 }
 
+/* ---------- destroy-simulation tuning ---------- */
+
+/** How far a planet is thrown — well past the camera, so it leaves frame. */
+const BLAST_DISTANCE = 30;
+/** Vertical scatter, so they don't all fly out along the same flat disc. */
+const BLAST_LIFT = 9;
+/** How small a planet gets at the peak of the blast. */
+const BLAST_SHRINK = 0.86;
+/** World-unit amplitude of the pre-impact shudder. */
+const TREMOR = 0.14;
+
+const SUN_COLOR = new THREE.Color("#ffd27a");
+const SUN_WHITE = new THREE.Color("#ffffff");
+
 const LABEL_CANVAS_HEIGHT = 128;
 /** World height per unit of camera distance that keeps the label the same
  *  apparent size on screen, the way the DOM labels used to behave. */
@@ -211,18 +238,69 @@ function makeLabelTexture(text: string) {
 
 function Sun({ glowTex, q }: { glowTex: THREE.Texture; q: Quality }) {
   const ref = useRef<THREE.Mesh>(null);
+  const core = useRef<THREE.Group>(null);
+  const coreMat = useRef<THREE.MeshBasicMaterial>(null);
+  const innerGlow = useRef<THREE.Sprite>(null);
+  const innerGlowMat = useRef<THREE.SpriteMaterial>(null);
+  const outerGlow = useRef<THREE.Sprite>(null);
+  const outerGlowMat = useRef<THREE.SpriteMaterial>(null);
+  const light = useRef<THREE.PointLight>(null);
   const tex = useMemo(() => makePlanetTexture("#ffb347", 7, q.texSize), [q.texSize]);
-  useFrame((_, d) => {
-    if (ref.current) ref.current.rotation.y += Math.min(d, 0.05) * 0.05;
+
+  useFrame((_, raw) => {
+    const d = Math.min(raw, 0.05);
+    if (ref.current) ref.current.rotation.y += d * 0.05;
+
+    /* ---- destroy simulation ----
+       Swells and goes white on impact, collapses to nothing through the void,
+       then relights with a small overshoot. */
+    const t = elapsed(spaceStore.get().destroyAt);
+    let scale = 1;
+    let glow = 1;
+    let white = 0;
+    if (t !== null) {
+      if (t < PHASE.impact) {
+        // Straining under the incoming hit.
+        const build = progress(t, 0, PHASE.impact);
+        scale = 1 + build ** 3 * 0.35 + Math.sin(t * 34) * build * 0.05;
+        glow = 1 + build * 1.2;
+      } else if (t < PHASE.voidEnd) {
+        const burst = progress(t, PHASE.impact, PHASE.impact + 0.22);
+        // Only a slight ease-in: a cubic one left the sun hanging at full
+        // size for seconds before anything visibly happened.
+        const collapse = progress(t, PHASE.impact + 0.22, PHASE.voidEnd) ** 1.4;
+        scale = (1.35 + easeOutQuint(burst) * 3.4) * (1 - collapse);
+        glow = (2.2 + easeOutQuint(burst) * 5) * (1 - collapse);
+        white = (1 - burst * 0.3) * (1 - collapse);
+      } else {
+        // Reignition, arriving a touch before the planets settle.
+        const relight = progress(t, PHASE.voidEnd + 0.5, PHASE.reformEnd);
+        scale = easeOutBack(relight);
+        glow = easeOutQuint(relight);
+        white = pulse(t, PHASE.voidEnd + 0.5, PHASE.voidEnd + 1.2) * 0.5;
+      }
+    }
+
+    if (core.current) core.current.scale.setScalar(Math.max(0.0001, scale));
+    if (coreMat.current) coreMat.current.color.copy(SUN_COLOR).lerp(SUN_WHITE, white);
+    if (innerGlowMat.current) innerGlowMat.current.opacity = 0.9 * glow;
+    if (outerGlowMat.current) outerGlowMat.current.opacity = 0.25 * glow;
+    if (innerGlow.current) innerGlow.current.scale.setScalar(9 * (0.6 + glow * 0.4));
+    if (outerGlow.current) outerGlow.current.scale.setScalar(18 * (0.6 + glow * 0.4));
+    if (light.current) light.current.intensity = 60 * glow;
   });
+
   return (
     <group>
-      <mesh ref={ref}>
-        <sphereGeometry args={[1.6, q.sphereSegments, q.sphereSegments]} />
-        <meshBasicMaterial map={tex} color="#ffd27a" />
-      </mesh>
-      <sprite scale={[9, 9, 1]}>
+      <group ref={core}>
+        <mesh ref={ref}>
+          <sphereGeometry args={[1.6, q.sphereSegments, q.sphereSegments]} />
+          <meshBasicMaterial ref={coreMat} map={tex} color="#ffd27a" />
+        </mesh>
+      </group>
+      <sprite ref={innerGlow} scale={[9, 9, 1]}>
         <spriteMaterial
+          ref={innerGlowMat}
           map={glowTex}
           color="#ffb547"
           transparent
@@ -231,8 +309,9 @@ function Sun({ glowTex, q }: { glowTex: THREE.Texture; q: Quality }) {
           opacity={0.9}
         />
       </sprite>
-      <sprite scale={[18, 18, 1]}>
+      <sprite ref={outerGlow} scale={[18, 18, 1]}>
         <spriteMaterial
+          ref={outerGlowMat}
           map={glowTex}
           color="#ff7a3d"
           transparent
@@ -241,7 +320,7 @@ function Sun({ glowTex, q }: { glowTex: THREE.Texture; q: Quality }) {
           opacity={0.25}
         />
       </sprite>
-      <pointLight intensity={60} distance={60} decay={1.4} color="#fff1d6" />
+      <pointLight ref={light} intensity={60} distance={60} decay={1.4} color="#fff1d6" />
     </group>
   );
 }
@@ -279,6 +358,9 @@ function Planet({
   const labelSprite = useRef<THREE.Sprite>(null);
   const orbitMat = useRef<THREE.LineBasicMaterial>(null);
   const angle = useRef(p.phase);
+  // Captured the instant the blast front arrives, so the planet keeps flying
+  // along one consistent heading instead of being dragged by its orbit.
+  const blastDir = useRef<THREE.Vector3 | null>(null);
   const tiltSin = Math.sin(p.tilt);
   const tiltCos = Math.cos(p.tilt);
 
@@ -316,7 +398,7 @@ function Planet({
   // applied to materials imperatively — no React re-render per pointer move.
   useFrame(({ camera }, raw) => {
     const d = Math.min(raw, 0.05);
-    const { selected, hovered } = spaceStore.get();
+    const { selected, hovered, destroyAt } = spaceStore.get();
     const isSelected = selected === p.id;
     const isHovered = hovered === p.id;
     const active = isSelected || isHovered;
@@ -328,34 +410,84 @@ function Planet({
     // inclination — the same transform the orbit ring is drawn with, so the
     // planet tracks its own line exactly even at the steeper tilts.
     const inPlane = Math.sin(angle.current) * p.orbitRadius;
-    const x = Math.cos(angle.current) * p.orbitRadius;
-    const y = -inPlane * tiltSin;
-    const z = inPlane * tiltCos;
+    let x = Math.cos(angle.current) * p.orbitRadius;
+    let y = -inPlane * tiltSin;
+    let z = inPlane * tiltCos;
+
+    /* ---- destroy simulation ----
+       `away` runs 0 -> 1 -> 0: thrown outward once the blast front arrives,
+       then eased back so the planet slides home onto its still-advancing
+       orbit, which reads as the system reassembling itself. */
+    let away = 0;
+    let flare = 0;
+    const t = elapsed(destroyAt);
+    if (t !== null) {
+      const knock = knockTime(p.orbitRadius);
+      // Shudders harder the closer the impactor gets, then rings out over the
+      // half second after the front passes — cutting it dead at `knock` put a
+      // visible twitch in the planet right as it was thrown.
+      const tremor =
+        t < knock
+          ? progress(t, 0, knock) ** 4 * TREMOR
+          : (1 - progress(t, knock, knock + 0.5)) * TREMOR;
+      if (tremor > 0) {
+        x += jitter(index * 3.1 + t * 60) * tremor;
+        y += jitter(index * 7.7 + t * 60) * tremor;
+        z += jitter(index * 5.3 + t * 60) * tremor;
+      }
+      if (t >= knock) {
+        away =
+          easeOutQuint(progress(t, knock, PHASE.voidEnd)) *
+          (1 - smoothstep(progress(t, PHASE.voidEnd, PHASE.reformEnd)));
+        flare = pulse(t, knock, knock + 0.7) * 1.6;
+
+        let dir = blastDir.current;
+        if (!dir) {
+          // Outward from the sun, with a per-planet vertical kick.
+          dir = blastDir.current = new THREE.Vector3(x, y, z)
+            .normalize()
+            .setY(jitter(index + 1.5) * 0.8)
+            .normalize();
+        }
+        const reach = away * BLAST_DISTANCE * (0.75 + Math.abs(jitter(index + 4.2)) * 0.5);
+        x += dir.x * reach;
+        y += dir.y * reach + away * BLAST_LIFT * jitter(index + 9.1) * 0.3;
+        z += dir.z * reach;
+      }
+    } else if (blastDir.current) {
+      blastDir.current = null;
+    }
+    const intact = 1 - away;
 
     if (group.current) {
       group.current.position.set(x, y, z);
-      const s = THREE.MathUtils.lerp(group.current.scale.x, active ? HOVER_SCALE : 1, ease);
+      const target = (active ? HOVER_SCALE : 1) * (1 - BLAST_SHRINK * away);
+      const s = THREE.MathUtils.lerp(group.current.scale.x, target, ease);
       group.current.scale.setScalar(s);
     }
-    if (body.current) body.current.rotation.y += d * 0.4;
+    if (body.current) {
+      body.current.rotation.y += d * (0.4 + away * 9);
+      // Tumble end over end once it has been knocked loose.
+      body.current.rotation.x += d * away * 7 * jitter(index + 2.7);
+    }
     if (bodyMat.current) {
       bodyMat.current.emissiveIntensity = THREE.MathUtils.lerp(
         bodyMat.current.emissiveIntensity,
-        isSelected ? 0.25 : 0.06,
-        ease,
+        (isSelected ? 0.25 : 0.06) + flare,
+        flare > 0 ? 1 : ease,
       );
     }
     if (haloMat.current) {
       haloMat.current.opacity = THREE.MathUtils.lerp(
         haloMat.current.opacity,
-        active ? 0.55 : 0.28,
-        ease,
+        (active ? 0.55 : 0.28) * intact + flare * 0.4,
+        flare > 0 ? 1 : ease,
       );
     }
     if (labelMat.current) {
       labelMat.current.opacity = THREE.MathUtils.lerp(
         labelMat.current.opacity,
-        active ? 1 : 0.55,
+        (active ? 1 : 0.55) * Math.max(0, intact * 2 - 1),
         ease,
       );
     }
@@ -367,7 +499,7 @@ function Planet({
     if (orbitMat.current) {
       orbitMat.current.opacity = THREE.MathUtils.lerp(
         orbitMat.current.opacity,
-        active ? 0.6 : 0.16,
+        (active ? 0.6 : 0.16) * intact,
         ease,
       );
       orbitMat.current.color.lerp(active ? ORBIT_ACTIVE : ORBIT_IDLE, ease);
@@ -445,6 +577,76 @@ function Planet({
         </sprite>
       </group>
     </>
+  );
+}
+
+/* ---------- shockwave ----------
+   The visible blast front. It expands at WAVE_SPEED, the same rate the planets
+   are knocked loose at, so each one lets go exactly as the ring passes it. */
+
+function Shockwave({ glowTex }: { glowTex: THREE.Texture }) {
+  const ring = useRef<THREE.Mesh>(null);
+  const ringMat = useRef<THREE.MeshBasicMaterial>(null);
+  const flash = useRef<THREE.Sprite>(null);
+  const flashMat = useRef<THREE.SpriteMaterial>(null);
+
+  useFrame(() => {
+    const t = elapsed(spaceStore.get().destroyAt);
+    // The front is only meaningful while it crosses the system; past blastEnd
+    // it has already faded out, so there is no reason to keep growing it.
+    const live = t !== null && t >= PHASE.impact && t < PHASE.blastEnd;
+
+    if (ring.current) ring.current.visible = live;
+    if (flash.current) flash.current.visible = live;
+    if (!live || t === null) return;
+
+    const age = t - PHASE.impact;
+    const radius = age * WAVE_SPEED;
+    const fade = 1 - progress(t, PHASE.impact, PHASE.blastEnd);
+
+    if (ring.current) {
+      // A unit ring scaled out, so one geometry covers the whole sweep.
+      ring.current.scale.setScalar(Math.max(0.001, radius));
+      ring.current.rotation.z += 0.01;
+    }
+    if (ringMat.current) ringMat.current.opacity = fade ** 0.7 * 0.85;
+    if (flashMat.current) {
+      flashMat.current.opacity = pulse(t, PHASE.impact, PHASE.impact + 0.5);
+    }
+    if (flash.current) {
+      const s = 10 + easeOutQuint(progress(t, PHASE.impact, PHASE.impact + 0.5)) * 60;
+      flash.current.scale.setScalar(s);
+    }
+  });
+
+  return (
+    <group>
+      {/* expanding front, lying in the orbital plane */}
+      <mesh ref={ring} rotation-x={Math.PI / 2} visible={false}>
+        <ringGeometry args={[0.82, 1, 96]} />
+        <meshBasicMaterial
+          ref={ringMat}
+          color="#ffe9b8"
+          transparent
+          opacity={0}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </mesh>
+      {/* the detonation itself */}
+      <sprite ref={flash} visible={false}>
+        <spriteMaterial
+          ref={flashMat}
+          map={glowTex}
+          color="#fff6d8"
+          transparent
+          opacity={0}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
+        />
+      </sprite>
+    </group>
   );
 }
 
@@ -809,10 +1011,60 @@ function CameraRig({ planets }: { planets: ProjectPlanet[] }) {
       tgt.set(0, 0, 0);
     }
     camera.position.lerp(pos, 1 - Math.exp(-2.2 * d));
+
+    /* ---- destroy simulation: camera shake ----
+       Applied after the lerp so it never gets smoothed away, and added to the
+       camera rather than the target so the whole frame jolts. */
+    const t = elapsed(spaceStore.get().destroyAt);
+    if (t !== null && t > PHASE.impact * 0.55 && t < PHASE.voidEnd) {
+      const ramp =
+        t < PHASE.impact
+          ? progress(t, PHASE.impact * 0.55, PHASE.impact) * 0.25 // rumble before the hit
+          : 1 - progress(t, PHASE.impact, PHASE.voidEnd); // violent, then dying off
+      const amp = ramp * 1.1;
+      const ms = t * 1000;
+      camera.position.x += jitter(ms * 0.11) * amp;
+      camera.position.y += jitter(ms * 0.13 + 50) * amp;
+      camera.position.z += jitter(ms * 0.17 + 90) * amp;
+    }
+
     look.current.lerp(tgt, 1 - Math.exp(-3 * d));
     camera.lookAt(look.current);
   });
   return null;
+}
+
+/* ---------- ambient lighting ----------
+   Pulled out so the destroy sequence can take the lights down with the sun and
+   bring them back up as it reignites. */
+
+function SceneLights() {
+  const ambient = useRef<THREE.AmbientLight>(null);
+  const hemi = useRef<THREE.HemisphereLight>(null);
+
+  useFrame(() => {
+    const t = elapsed(spaceStore.get().destroyAt);
+    let level = 1;
+    if (t !== null) {
+      if (t >= PHASE.impact && t < PHASE.voidEnd) {
+        // Blown out by the flash, then fading toward darkness. The falloff
+        // has to start at 1, or the scene darkens for a frame on the hit.
+        const burst = pulse(t, PHASE.impact, PHASE.impact + 0.4) * 2.5;
+        level = burst + (1 - progress(t, PHASE.impact, PHASE.voidEnd)) ** 1.5;
+      } else if (t >= PHASE.voidEnd) {
+        level = easeOutQuint(progress(t, PHASE.voidEnd + 0.5, PHASE.reformEnd));
+      }
+    }
+    if (ambient.current) ambient.current.intensity = 0.35 * level;
+    if (hemi.current) hemi.current.intensity = 0.35 * level;
+  });
+
+  return (
+    <>
+      <ambientLight ref={ambient} intensity={0.35} color="#8090ff" />
+      <hemisphereLight ref={hemi} args={["#9fb4ff", "#1a0f2e", 0.35]} />
+    </>
+  );
 }
 
 /* ---------- distant nebula backdrop ---------- */
@@ -870,8 +1122,7 @@ export default function SpaceScene() {
       onPointerMissed={() => spaceStore.set({ selected: null })}
     >
       <color attach="background" args={["#05060f"]} />
-      <ambientLight intensity={0.35} color="#8090ff" />
-      <hemisphereLight args={["#9fb4ff", "#1a0f2e", 0.35]} />
+      <SceneLights />
       <Stars radius={120} depth={60} count={q.stars} factor={4} saturation={0.2} fade speed={0.6} />
       {q.sparkles > 0 && (
         <Sparkles
@@ -888,6 +1139,7 @@ export default function SpaceScene() {
       <Wormhole q={q} />
       <Meteors count={q.meteors} />
       <Sun glowTex={glowTex} q={q} />
+      <Shockwave glowTex={glowTex} />
       {planets.map((p, i) => (
         <Planet key={p.id} p={p} index={i} glowTex={glowTex} q={q} />
       ))}

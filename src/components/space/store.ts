@@ -7,9 +7,12 @@ type State = {
   hovered: string | null;
   /** Starts as the bundled fallback, replaced once GitHub answers. */
   planets: ProjectPlanet[];
+  /** performance.now() when "destroy simulation" was pressed, else null. The
+   *  3D scene and the DOM overlay both run their sequence off this one clock. */
+  destroyAt: number | null;
 };
 
-let state: State = { selected: null, hovered: null, planets: PROJECT_PLANETS };
+let state: State = { selected: null, hovered: null, planets: PROJECT_PLANETS, destroyAt: null };
 const listeners = new Set<() => void>();
 
 export const spaceStore = {

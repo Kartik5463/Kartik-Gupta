@@ -262,7 +262,11 @@
   filter: drop-shadow(0 0 8px #8cff8b99);
   will-change: transform;
 }
-.alien-cursor svg { display: block; width: 100%; height: 100%; }
+.alien-cursor svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
 /* `cursor` inherits, so setting it on the root covers almost everything; only
    the elements the UA stylesheet gives their own cursor need listing. Matching
    `body *` instead made every style recalculation walk the whole tree. */
@@ -281,125 +285,300 @@
   }
 }
 @media (pointer: coarse), (prefers-reduced-motion: reduce) {
-  .alien-cursor { display: none; }
+  .alien-cursor {
+    display: none;
+  }
 }
 
-/* Optional 10 second solar system destruction visual. GPU-friendly transform/opacity only. */
+/* ---- "Destroy simulation" overlay ----
+   The planets, sun, shockwave and camera shake all happen in the 3D scene
+   (SpaceScene). This layer only adds what WebGL can't: the full-screen flash,
+   the darkness, the embers and the status HUD.
+
+   Every timing comes from destruction.ts via custom properties set on the root
+   element, so each layer is positioned with its own delay + duration rather
+   than keyframe percentages that would need hand-syncing. GPU-friendly
+   transform/opacity only. */
 .destruction-effect {
   position: fixed;
   z-index: 40;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  animation: destruction-return 10s ease both;
+  animation: destruction-out var(--d-total) ease both;
 }
-.destruction-effect::before {
+
+/* darkness that swallows the system, pulsing as the blast rolls through */
+.destruction-effect__vignette {
   position: absolute;
   inset: 0;
-  background: #06040a;
-  content: "";
-  animation: destruction-darken 10s ease both;
+  background: radial-gradient(circle at 50% 50%, #0b0616 0%, #06040a 55%, #000 100%);
+  opacity: 0;
+  animation: destruction-dark var(--d-dark) ease-in-out var(--d-dark-start) both;
 }
+
+/* incoming impactor, falling toward the centre of frame */
 .destruction-effect__asteroid {
   position: absolute;
-  top: 12%;
-  left: 88%;
-  width: clamp(34px, 5vw, 68px);
+  top: 8%;
+  left: 86%;
+  width: clamp(30px, 4.2vw, 58px);
   aspect-ratio: 1;
-  border-radius: 38% 62% 45% 55%;
-  background: radial-gradient(circle at 32% 28%, #ffd48a 0 8%, #9a573d 14%, #45303b 60%, #171421 100%);
-  box-shadow: 0 0 24px #ff8f4c99, -35px 25px 18px -14px #ff9b5a88;
-  animation: asteroid-impact 2.15s cubic-bezier(.4, 0, .8, .2) both;
+  animation: asteroid-fall var(--d-impact) cubic-bezier(0.45, 0, 0.9, 0.35) both;
 }
-.destruction-effect__asteroid span {
+.destruction-effect__rock {
   position: absolute;
-  inset: 22% 18%;
-  border: 3px solid #211e28;
-  border-radius: 50%;
-  transform: rotate(-25deg);
+  inset: 0;
+  border-radius: 42% 58% 47% 53%;
+  background: radial-gradient(
+    circle at 32% 28%,
+    #fff0c4 0 6%,
+    #ffb347 12%,
+    #9a573d 34%,
+    #45303b 66%,
+    #171421 100%
+  );
+  box-shadow:
+    0 0 22px #ff8f4cbb,
+    0 0 60px #ff5d3566;
+  animation: asteroid-spin var(--d-impact) linear both;
 }
-.destruction-effect__blast {
+/* heat trail, stretched back along the flight path */
+.destruction-effect__trail {
+  position: absolute;
+  top: 50%;
+  left: 40%;
+  width: 46vmax;
+  height: clamp(3px, 0.5vw, 7px);
+  border-radius: 999px;
+  transform: translate(0, -50%) rotate(-38deg);
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, #ffd98acc, #ff5d3577 35%, transparent 100%);
+  filter: blur(2px);
+  opacity: 0;
+  animation: trail-in var(--d-impact) ease-out both;
+}
+
+/* the detonation itself */
+.destruction-effect__flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    #fff 0%,
+    #fff6d8 18%,
+    #ffb23f 40%,
+    transparent 70%
+  );
+  opacity: 0;
+  animation: destruction-flash var(--d-flash) ease-out var(--d-impact) both;
+}
+
+/* thin expanding ring, echoing the 3D shockwave for punch on screen */
+.destruction-effect__ring {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 12vmin;
+  width: 8vmin;
   aspect-ratio: 1;
+  margin: -4vmin 0 0 -4vmin;
+  border: 2px solid #ffe9b8;
   border-radius: 50%;
-  background: radial-gradient(circle, white 0 3%, #fff6b0 8%, #ffb23f 22%, #ff5d35 38%, #9f2f7a 58%, transparent 72%);
   opacity: 0;
-  transform: translate(-50%, -50%) scale(.05);
-  animation: sun-explode 10s ease-out 2s both;
+  animation: destruction-ring var(--d-shake) cubic-bezier(0.15, 0.7, 0.25, 1) var(--d-impact) both;
 }
-.destruction-effect__debris { position: absolute; inset: 0; }
-.destruction-effect__debris i {
+
+/* embers */
+.destruction-effect__sparks {
+  position: absolute;
+  inset: 0;
+}
+.destruction-effect__sparks i {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 12px;
-  height: 8px;
-  border-radius: 3px;
-  background: var(--primary);
-  box-shadow: 0 0 14px #ff9d43;
+  width: var(--spark-size, 8px);
+  height: 3px;
+  border-radius: 999px;
   opacity: 0;
-  animation: debris-fly 2.5s ease-out 2.08s both;
+  animation: spark-fly var(--d-shake) cubic-bezier(0.1, 0.75, 0.3, 1)
+    calc(var(--d-impact) + var(--spark-delay, 0s)) both;
 }
-.destruction-effect__debris i:nth-child(2) { --dx: 34vw; --dy: -25vh; background: #fb6845; }
-.destruction-effect__debris i:nth-child(3) { --dx: -40vw; --dy: -18vh; animation-delay: 2.12s; }
-.destruction-effect__debris i:nth-child(4) { --dx: 28vw; --dy: 34vh; animation-delay: 2.16s; background: #ff784a; }
-.destruction-effect__debris i:nth-child(5) { --dx: -32vw; --dy: 30vh; animation-delay: 2.1s; }
-.destruction-effect__debris i:nth-child(6) { --dx: 8vw; --dy: -42vh; animation-delay: 2.14s; background: #fff1a3; }
-.destruction-effect__debris i:nth-child(7) { --dx: -12vw; --dy: 40vh; animation-delay: 2.18s; }
-.destruction-effect__debris i:nth-child(8) { --dx: 42vw; --dy: 5vh; animation-delay: 2.11s; background: #cf7bff; }
-.destruction-effect__debris i:nth-child(1) { --dx: -42vw; --dy: 2vh; }
-.destruction-effect__message {
+
+/* status readout */
+.destruction-effect__hud {
   position: absolute;
-  top: 72%;
-  width: 100%;
-  color: #ffd36a;
-  font: 600 11px/1 ui-monospace, monospace;
-  letter-spacing: .3em;
+  top: 68%;
+  left: 50%;
+  width: min(92vw, 420px);
+  transform: translateX(-50%);
   text-align: center;
   opacity: 0;
-  animation: reboot-message 10s ease both;
+  animation: hud-in var(--d-msg) ease var(--d-msg-start) both;
 }
-@keyframes asteroid-impact {
-  0% { transform: translate(0, 0) rotate(0) scale(.75); }
-  82% { transform: translate(-34vw, 28vh) rotate(380deg) scale(1.15); }
-  100% { transform: translate(-36vw, 30vh) rotate(430deg) scale(.15); opacity: 0; }
+.destruction-effect__status {
+  margin: 0;
+  color: #ffd36a;
+  font: 600 11px/1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px #ff9d4399;
 }
-@keyframes sun-explode {
-  0%, 20% { opacity: 0; transform: translate(-50%, -50%) scale(.05); }
-  23% { opacity: 1; transform: translate(-50%, -50%) scale(1.8); }
-  42% { opacity: .9; transform: translate(-50%, -50%) scale(15); }
-  58% { opacity: .75; transform: translate(-50%, -50%) scale(22); }
-  82% { opacity: .35; transform: translate(-50%, -50%) scale(28); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(32); }
+.destruction-effect__meter {
+  margin-top: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: #ffd36a26;
+  overflow: hidden;
 }
-@keyframes debris-fly {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(.2) rotate(0); }
-  12% { opacity: 1; }
-  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.4) rotate(720deg); }
+.destruction-effect__meter span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #ff7a3d, #ffd36a);
+  animation: meter-fill var(--d-msg) linear var(--d-msg-start) both;
 }
-@keyframes destruction-darken {
-  0%, 20% { opacity: 0; }
-  23% { opacity: .72; }
-  35% { opacity: .25; }
-  52% { opacity: .78; }
-  75% { opacity: .42; }
-  100% { opacity: 0; }
+
+/* These run with fill-mode `both`, so the last keyframe is what holds for the
+   rest of the sequence — the impactor and its trail have to end invisible or
+   they stay parked on screen behind the explosion. */
+@keyframes asteroid-fall {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(0.55);
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-36vw, 42vh) scale(1.3);
+  }
 }
-@keyframes destruction-return {
-  0%, 80% { opacity: 1; }
-  100% { opacity: 0; }
+@keyframes asteroid-spin {
+  to {
+    transform: rotate(420deg);
+  }
 }
-@keyframes reboot-message {
-  0%, 38% { opacity: 0; }
-  45%, 72% { opacity: .9; }
-  100% { opacity: 0; }
+@keyframes trail-in {
+  0% {
+    opacity: 0;
+    transform: translate(0, -50%) rotate(-38deg) scaleX(0.2);
+  }
+  40% {
+    opacity: 0.85;
+  }
+  86% {
+    opacity: 0.95;
+    transform: translate(0, -50%) rotate(-38deg) scaleX(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, -50%) rotate(-38deg) scaleX(1);
+  }
 }
+@keyframes destruction-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+@keyframes destruction-ring {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.2);
+    border-width: 3px;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(26);
+    border-width: 0.5px;
+  }
+}
+@keyframes spark-fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0.5);
+  }
+}
+/* Spans impact -> reformEnd and must come back to 0: held at full darkness it
+   would veil the planets sliding back into their orbits. Deepest at ~52%,
+   which lands inside the void phase. */
+@keyframes destruction-dark {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.6;
+  }
+  20% {
+    opacity: 0.32;
+  }
+  52% {
+    opacity: 0.92;
+  }
+  58% {
+    opacity: 0.88;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes hud-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  12%,
+  82% {
+    opacity: 0.95;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+@keyframes meter-fill {
+  to {
+    width: 100%;
+  }
+}
+@keyframes destruction-out {
+  0%,
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: keep the beats, drop the thrashing. The 3D sequence still
+   runs on its own clock, so only the overlay is simplified here. */
 @media (prefers-reduced-motion: reduce) {
-  .destruction-effect { animation-duration: 2s; }
-  .destruction-effect__asteroid, .destruction-effect__blast, .destruction-effect__debris i { animation-duration: 2s; }
-  .destruction-effect__blast { animation-delay: 0s; }
-  .destruction-effect__debris i { animation-delay: 0s; }
+  .destruction-effect__asteroid,
+  .destruction-effect__trail,
+  .destruction-effect__ring,
+  .destruction-effect__sparks {
+    display: none;
+  }
+  .destruction-effect__flash {
+    animation-duration: 0.3s;
+  }
 }
