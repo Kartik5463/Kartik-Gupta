@@ -1,7 +1,7 @@
 // Pure mapping from the Codolio and GitHub API payloads onto what the portfolio
 // renders. Kept free of framework imports so it can be unit-tested directly;
 // the server functions in *.functions.ts only add fetching and caching.
-import { MAX_PLANETS, type LiveRepo } from "./planets";
+import { featuredSlug, FEATURED, type Featured, type LiveRepo } from "./planets";
 
 const DAY_SECONDS = 86_400;
 
@@ -136,34 +136,47 @@ export function parseCodolioProfile(
 
 /* ---------- GitHub ---------- */
 
+/** Only the fields the portfolio reads. */
 export interface GitHubRepo {
+  /** "owner/repo" as GitHub spells it. */
+  full_name: string;
   name: string;
   description: string | null;
   language: string | null;
   topics?: string[] | null;
   stargazers_count: number;
-  forks_count: number;
   html_url: string;
   homepage: string | null;
   pushed_at: string;
-  fork: boolean;
-  archived: boolean;
-  private: boolean;
 }
 
-/** Most-starred first, then most recently pushed — so the work worth pinning floats up. */
-function score(r: GitHubRepo): number {
-  const recencyInDays = new Date(r.pushed_at).getTime() / 86_400_000;
-  return r.stargazers_count * 1000 + r.forks_count * 300 + recencyInDays;
-}
-
-export function pickTopRepos(json: unknown): LiveRepo[] | null {
+/**
+ * Resolves the manual FEATURED list against the repositories GitHub returned,
+ * matching on "owner/repo" so a team-org repo can sit alongside personal ones.
+ *
+ * There is deliberately no ranking here: the line-up and its order live in
+ * FEATURED (planets.ts) and only change when that array is edited. This only
+ * looks up each listed repo and converts it, keeping FEATURED's order. Repos
+ * not on the list are ignored — including this portfolio's own repository,
+ * which a "most recently pushed" ranking used to pull in.
+ */
+export function pickFeaturedRepos(
+  json: unknown,
+  /** Overridable for tests; production always resolves the real list. */
+  featured: Featured[] = FEATURED,
+): LiveRepo[] | null {
   if (!Array.isArray(json)) return null;
-  const repos = (json as GitHubRepo[])
-    .filter((r) => r && !r.fork && !r.archived && !r.private)
-    .sort((a, b) => score(b) - score(a))
-    .slice(0, MAX_PLANETS)
+
+  const bySlug = new Map<string, GitHubRepo>();
+  for (const r of json as GitHubRepo[]) {
+    if (r?.full_name) bySlug.set(r.full_name.toLowerCase(), r);
+  }
+
+  const repos = featured
+    .map((entry) => bySlug.get(featuredSlug(entry)))
+    .filter((r): r is GitHubRepo => Boolean(r))
     .map<LiveRepo>((r) => ({
+      slug: r.full_name.toLowerCase(),
       name: r.name,
       description: r.description,
       language: r.language,
@@ -173,5 +186,6 @@ export function pickTopRepos(json: unknown): LiveRepo[] | null {
       homepage: r.homepage,
       pushedAt: r.pushed_at,
     }));
+
   return repos.length ? repos : null;
 }

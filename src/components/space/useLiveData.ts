@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { getCodolioStats } from "./codolio.functions";
 import { type CodolioLiveStats } from "./liveData.parse";
-import { getTopRepos } from "./github.functions";
+import { getFeaturedRepos } from "./github.functions";
 import {
   buildPlanets,
   PROFILE,
@@ -168,5 +168,9 @@ function toProjects(repos: LiveRepo[]): LiveProjects {
 }
 
 export function useProjects(): LiveProjects {
-  return useLive("github-top-repos-v1", getTopRepos, toProjects, projectsFallback);
+  // Bump this whenever the cached shape changes, so a returning visitor
+  // refetches instead of rendering from a cache that no longer matches.
+  // v2: ranked top-8 -> the manual FEATURED list.
+  // v3: records gained `slug`, which is now how they are matched.
+  return useLive("github-featured-repos-v3", getFeaturedRepos, toProjects, projectsFallback);
 }

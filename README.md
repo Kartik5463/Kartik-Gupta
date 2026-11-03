@@ -1,10 +1,13 @@
 # Kartik Gupta — Space Portfolio
 
-A 3D solar-system portfolio built with TanStack Start. Every project is a planet,
-and the project list and problem-solving stats are both fetched live.
+A 3D solar-system portfolio built with TanStack Start. Every project is a planet.
+The line-up is hand-picked; its details and the problem-solving stats are live.
 
-- **Projects** come from the GitHub API — the top 8 repositories by stars, then by
-  most recent push, placed into eight fixed orbit slots.
+- **Projects** are a fixed, hand-picked line-up — the `FEATURED` array in
+  [`src/components/space/planets.ts`](src/components/space/planets.ts). Nothing
+  ranks or reorders it; editing that array is the only way the line-up changes.
+  Each entry's details (description, language, stars, last push, deploy URL) are
+  fetched from GitHub so the content stays current while the line-up stays put.
 - **Stats** come from the Codolio API (problems solved, rating, contests, badges,
   active days, streak, submissions).
 

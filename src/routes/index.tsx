@@ -422,12 +422,12 @@ function Index() {
               </p>
               <h2 className="mt-4 text-4xl font-bold md:text-5xl">Every project is a planet.</h2>
               <p className="mt-4 text-muted-foreground">
-                My {planets.length} most active repositories, pulled straight from GitHub. Click any
-                planet in the sky - or a card below - to fly to it.
+                {planets.length} hand-picked builds, with their details kept current from GitHub.
+                Click any planet in the sky - or a card below - to fly to it.
               </p>
               {projectsLive && (
                 <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-aurora/40 px-3 py-1 font-mono text-[11px] uppercase tracking-widest text-aurora">
-                  <Satellite className="h-3 w-3" /> Live from GitHub
+                  <Satellite className="h-3 w-3" /> Details live from GitHub
                 </p>
               )}
             </div>

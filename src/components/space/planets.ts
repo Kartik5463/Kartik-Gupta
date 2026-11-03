@@ -21,17 +21,20 @@ export interface ProjectPlanet {
   phase: number;
   tilt: number;
   ring?: boolean;
-  link?: string;
+  /** Repo URL, present only once GitHub has confirmed the repository exists. */
+  link?: string | undefined;
   /** Deploy URL from the repo's GitHub homepage field, when it has one. */
   demo?: string | undefined;
   stars?: number;
-  updatedAt?: string;
+  updatedAt?: string | undefined;
 }
 
 const GH = "https://github.com/Kartik5463";
 
 /** A repo as the GitHub fetch hands it over — see github.functions.ts. */
 export interface LiveRepo {
+  /** "owner/repo", lowercased — the key a featured entry is matched on. */
+  slug: string;
   name: string;
   description: string | null;
   language: string | null;
@@ -155,62 +158,119 @@ export const MAX_PLANETS = ORBIT_SLOTS.length;
 
 /* ---------- curated copy, keyed by lowercased repo name ---------- */
 
-interface Curated {
+/* ---------- the featured projects ----------
+
+   ►► THIS LIST IS MANUAL. ◄◄
+
+   It is the single source of truth for which projects appear in the solar
+   system and in what order — nothing ranks, reorders, adds or drops entries
+   automatically. Editing this array is the only way the line-up changes.
+
+   `repo` names a repository on github.com/Kartik5463. Its live details —
+   description, language, stars, last push and deploy URL — are fetched and
+   merged in at runtime, so the content stays current while the line-up stays
+   fixed. The curated copy below wins over GitHub's own description, because
+   most of these repos have none.
+
+   An entry with `pending: true` has no write-up yet and is held back until
+   GitHub returns the repo, so a planet never renders with placeholder text or
+   a link to a repository that isn't there. It appears on its own, in its slot
+   below, as soon as the repo is public. */
+
+/** Repos live under this account unless an entry names a different `owner`. */
+export const DEFAULT_OWNER = "Kartik5463";
+
+export interface Featured {
+  /** Repository name on GitHub, exactly as it is spelled there. */
+  repo: string;
+  /** Owner, when the repo isn't under the personal account — a team org, say.
+   *  These are fetched one by one, since they aren't in the account listing. */
+  owner?: string;
+  /** Display name. Defaults to the repo name, prettified. */
   name?: string;
-  tagline: string;
-  description: string;
+  tagline?: string;
+  description?: string;
   tech?: string[];
+  /** Waiting on the repository to exist publicly — see the note above. */
+  pending?: boolean;
 }
 
-const CURATED: Record<string, Curated> = {
-  chattify: {
-    tagline: "Real-time Chat App",
+export const FEATURED: Featured[] = [
+  {
+    repo: "Sound2Song",
+    name: "Sound2Song",
+    tagline: "YouTube Song Identifier",
     description:
-      "A real-time messaging app with live rooms and instant delivery — built to explore WebSocket-driven architecture and clean client state sync.",
-    tech: ["JavaScript", "React", "WebSockets"],
+      "Paste any YouTube link and it identifies the songs playing in it — returning the title, artist and the timestamps where each one appears.",
+    tech: ["JavaScript", "YouTube API", "Audio Fingerprinting"],
   },
-  artmart: {
+  {
+    repo: "ArtMart",
     name: "ArtMart",
     tagline: "Art Marketplace",
     description:
       "An online marketplace for art — browse, list and discover artwork through a polished storefront UI with a component-driven design.",
     tech: ["JavaScript", "React", "CSS"],
   },
-  musico: {
-    tagline: "Music Streaming UI",
+  {
+    repo: "Chattify",
+    name: "Chattify",
+    tagline: "Real-time Chat App",
     description:
-      "A music streaming interface with playlists, player controls and a sleek listening experience — focused on smooth interactions and media UI.",
-    tech: ["JavaScript", "React", "Audio API"],
+      "A real-time messaging app with live rooms and instant delivery — built to explore WebSocket-driven architecture and clean client state sync.",
+    tech: ["JavaScript", "React", "WebSockets"],
   },
-  bookify_project: {
-    name: "Bookify",
-    tagline: "Book Discovery App",
-    description:
-      "A book-lover's app built with React Router DOM for seamless navigation and Zustand for lightweight, predictable state management.",
-    tech: ["React", "React Router", "Zustand"],
-  },
-  "media-search-react-redux-project-": {
-    name: "Media Search",
-    tagline: "Image & Video Finder",
-    description:
-      "A React + Redux app that fetches images and videos for anything you search — with the ability to save your favourites into a personal collection.",
-    tech: ["React", "Redux", "REST APIs"],
-  },
-  "subreddit-vibe-check": {
+  {
+    repo: "Subreddit-vibe-check",
     name: "Subreddit Vibe Check",
     tagline: "Sentiment Analyzer",
     description:
       "A tool that reads the mood of any subreddit — pulling posts and analyzing the vibe of the community conversation.",
     tech: ["JavaScript", "Reddit API", "Sentiment Analysis"],
   },
-  "dropbox-css-clone": {
-    name: "Dropbox Clone",
-    tagline: "Pixel-perfect Landing Page",
+  {
+    // Team repo from the Dogfood hackathon, so it lives under the org rather
+    // than the personal account.
+    repo: "Verdikt",
+    owner: "Dogfood-Hackathon-Team-ByteMe",
+    name: "Verdikt",
+    tagline: "Hackathon Hosting Platform",
     description:
-      "A faithful rebuild of the Dropbox marketing page in pure HTML and CSS — an exercise in layout precision, spacing and responsive behaviour.",
-    tech: ["HTML", "CSS", "Responsive Design"],
+      "A platform for hosting hackathons, built with my team for the Dogfood hackathon — a full-stack app covering the run of an event end to end.",
+    tech: ["JavaScript", "TypeScript", "CSS", "Docker"],
   },
-};
+  {
+    repo: "Musico",
+    name: "Musico",
+    tagline: "Music Streaming UI",
+    description:
+      "A music streaming interface with playlists, player controls and a sleek listening experience — focused on smooth interactions and media UI.",
+    tech: ["JavaScript", "React", "Audio API"],
+  },
+  {
+    repo: "Bookify_Project",
+    name: "Bookify",
+    tagline: "Book Discovery App",
+    description:
+      "A book-lover's app built with React Router DOM for seamless navigation and Zustand for lightweight, predictable state management.",
+    tech: ["React", "React Router", "Zustand"],
+  },
+  {
+    // Hack@BVP team repo, under the team's org rather than the personal account.
+    repo: "VanDrishti",
+    owner: "TeamVanRakshak",
+    name: "VanDrishti",
+    tagline: "Wildlife Monitoring AI",
+    description:
+      "A behaviour-aware AI system for wildlife monitoring and threat detection, built with my team for Hack@BVP 8.0 in the IoT, Robotics & Hardware track.",
+    tech: ["Python", "AI", "IoT"],
+  },
+];
+
+/** "owner/repo", lowercased — how a featured entry is matched to a live repo. */
+export function featuredSlug(entry: Pick<Featured, "repo" | "owner">): string {
+  return `${entry.owner ?? DEFAULT_OWNER}/${entry.repo}`.toLowerCase();
+}
 
 /* ---------- repo -> planet ---------- */
 
@@ -246,115 +306,62 @@ function prettifyName(raw: string): string {
     .join(" ");
 }
 
-function techFor(repo: LiveRepo, curated?: Curated): string[] {
-  if (curated?.tech?.length) return curated.tech;
-  const tags = [repo.language, ...repo.topics.map(prettifyName)].filter((t): t is string =>
-    Boolean(t),
+function techFor(entry: Featured, repo?: LiveRepo): string[] {
+  if (entry.tech?.length) return entry.tech;
+  const tags = [repo?.language, ...(repo?.topics ?? []).map(prettifyName)].filter(
+    (t): t is string => Boolean(t),
   );
   return tags.length ? Array.from(new Set(tags)).slice(0, 4) : ["Code"];
 }
 
-/** Places live repos into the fixed orbit slots. Repos past the slot count are
- *  dropped; fewer repos just leave the outer orbits empty. */
-export function buildPlanets(repos: LiveRepo[]): ProjectPlanet[] {
-  return repos.slice(0, MAX_PLANETS).map((repo, i) => {
-    const slot = ORBIT_SLOTS[i]!;
-    const curated = CURATED[repo.name.toLowerCase()];
-    return {
-      ...slot,
-      id: repo.name.toLowerCase(),
-      name: curated?.name ?? prettifyName(repo.name),
-      tagline: curated?.tagline ?? repo.language ?? "Repository",
-      description:
-        curated?.description ??
-        repo.description ??
-        `A ${repo.language ?? "code"} project — open the repo to dig into how it is built.`,
-      tech: techFor(repo, curated),
-      link: repo.url,
-      demo: repo.homepage?.startsWith("http") ? repo.homepage : undefined,
-      stars: repo.stars,
-      updatedAt: repo.pushedAt,
-    };
-  });
+/**
+ * Walks FEATURED in order and hands each project the next orbit slot, so the
+ * line-up and its ordering come entirely from that array.
+ *
+ * Slots fill from the innermost outward with no gaps, so a project held back
+ * doesn't leave an empty orbit. The cost is that the planets beyond it shift
+ * out by one once it appears — a cosmetic reshuffle; the order of the line-up
+ * itself never changes.
+ *
+ * `repos` are the live GitHub records, matched by name. Passing nothing is what
+ * the first paint renders from.
+ */
+export function buildPlanets(
+  repos: LiveRepo[] = [],
+  /** Overridable so the `pending` path stays testable once nothing is pending. */
+  featured: Featured[] = FEATURED,
+): ProjectPlanet[] {
+  const live = new Map(repos.map((r) => [r.slug, r]));
+
+  return (
+    featured
+      .map((entry) => ({ entry, repo: live.get(featuredSlug(entry)) }))
+      // A pending project stays hidden until its repository shows up, rather
+      // than rendering placeholder copy and a link that 404s.
+      .filter(({ entry, repo }) => !entry.pending || repo)
+      .slice(0, MAX_PLANETS)
+      .map(({ entry, repo }, i) => ({
+        ...ORBIT_SLOTS[i]!,
+        id: entry.repo.toLowerCase(),
+        name: entry.name ?? prettifyName(entry.repo),
+        tagline: entry.tagline ?? repo?.language ?? "Repository",
+        description:
+          entry.description ??
+          repo?.description ??
+          `A ${repo?.language ?? "code"} project — open the repo to dig into how it is built.`,
+        tech: techFor(entry, repo),
+        // Only link to a repo GitHub actually confirmed.
+        link: repo?.url,
+        demo: repo?.homepage?.startsWith("http") ? repo.homepage : undefined,
+        stars: repo?.stars ?? 0,
+        updatedAt: repo?.pushedAt,
+      }))
+  );
 }
 
-/** Shown instantly on first paint and whenever GitHub can't be reached. Kept in
- *  the same order the live ranking produces, so the swap-in doesn't visibly
- *  reshuffle which project sits in which orbit. */
-export const FALLBACK_REPOS: LiveRepo[] = [
-  {
-    name: "Subreddit-vibe-check",
-    description: null,
-    language: "JavaScript",
-    topics: [],
-    stars: 0,
-    url: `${GH}/Subreddit-vibe-check`,
-    homepage: null,
-    pushedAt: "2026-10-26T00:00:00Z",
-  },
-  {
-    name: "Chattify",
-    description: null,
-    language: "JavaScript",
-    topics: [],
-    stars: 0,
-    url: `${GH}/Chattify`,
-    homepage: "https://chattify-navy.vercel.app",
-    pushedAt: "2026-09-22T00:00:00Z",
-  },
-  {
-    name: "ArtMart",
-    description: null,
-    language: "JavaScript",
-    topics: [],
-    stars: 0,
-    url: `${GH}/ArtMart`,
-    homepage: "https://artmart-seven.vercel.app",
-    pushedAt: "2026-08-06T00:00:00Z",
-  },
-  {
-    name: "Musico",
-    description: null,
-    language: "JavaScript",
-    topics: [],
-    stars: 0,
-    url: `${GH}/Musico`,
-    homepage: null,
-    pushedAt: "2026-07-19T00:00:00Z",
-  },
-  {
-    name: "Bookify_Project",
-    description: null,
-    language: "JavaScript",
-    topics: [],
-    stars: 0,
-    url: `${GH}/Bookify_Project`,
-    homepage: null,
-    pushedAt: "2026-07-18T00:00:00Z",
-  },
-  {
-    name: "DROPBOX-CSS-CLONE",
-    description: null,
-    language: "HTML",
-    topics: [],
-    stars: 0,
-    url: `${GH}/DROPBOX-CSS-CLONE`,
-    homepage: null,
-    pushedAt: "2026-07-17T00:00:00Z",
-  },
-  {
-    name: "Media-search-React-Redux-Project-",
-    description: null,
-    language: "JavaScript",
-    topics: [],
-    stars: 0,
-    url: `${GH}/Media-search-React-Redux-Project-`,
-    homepage: null,
-    pushedAt: "2026-04-18T00:00:00Z",
-  },
-];
-
-export const PROJECT_PLANETS: ProjectPlanet[] = buildPlanets(FALLBACK_REPOS);
+/** Rendered on the first paint, before GitHub answers, and whenever it can't
+ *  be reached — the curated copy for every non-pending project. */
+export const PROJECT_PLANETS: ProjectPlanet[] = buildPlanets();
 
 export const PROFILE = {
   name: "Kartik Gupta",
