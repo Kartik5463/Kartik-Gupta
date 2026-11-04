@@ -13,6 +13,7 @@ import {
   featuredSlug,
   MAX_PLANETS,
   ORBIT_SLOTS,
+  repoUrl,
 } from "@/components/space/planets";
 
 const DAY = 86_400;
@@ -330,11 +331,32 @@ describe("buildPlanets", () => {
     expect(chattify.link).toBe("https://github.com/Kartik5463/Chattify");
   });
 
-  it("omits the code link for a project GitHub has not confirmed", () => {
-    const musico = buildPlanets().find((p) => p.id === "musico")!;
+  it("gives every project a code link even with no live data at all", () => {
+    // The repo URL is known from the entry, so a slow or failing GitHub call
+    // must never leave a project without its "View code" link.
+    for (const planet of buildPlanets()) {
+      expect(planet.link, `${planet.id} has no code link`).toBeTruthy();
+    }
+  });
 
-    expect(musico.link).toBeUndefined();
-    expect(musico.stars).toBe(0);
+  it("builds the code link from the owner, so org repos link correctly", () => {
+    const planets = buildPlanets();
+
+    for (const entry of FEATURED) {
+      if (entry.pending) continue;
+      const planet = planets.find((p) => p.id === entry.repo.toLowerCase())!;
+
+      expect(planet.link).toBe(repoUrl(entry));
+      expect(planet.link).toContain(`/${entry.owner ?? DEFAULT_OWNER}/`);
+    }
+  });
+
+  it("prefers the URL GitHub returned when it has one", () => {
+    const planets = buildPlanets(
+      pickFeaturedRepos([repo({ name: "Musico", html_url: "https://github.com/x/Musico" })])!,
+    );
+
+    expect(planets.find((p) => p.id === "musico")!.link).toBe("https://github.com/x/Musico");
   });
 
   it("ignores a blank homepage instead of offering an empty demo link", () => {

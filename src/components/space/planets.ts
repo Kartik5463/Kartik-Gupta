@@ -272,6 +272,13 @@ export function featuredSlug(entry: Pick<Featured, "repo" | "owner">): string {
   return `${entry.owner ?? DEFAULT_OWNER}/${entry.repo}`.toLowerCase();
 }
 
+/** The repository's URL, known from the entry alone — no API call needed.
+ *  Deriving it means every project has a working "View code" link on the first
+ *  paint, and still has one if GitHub is unreachable or rate-limited. */
+export function repoUrl(entry: Pick<Featured, "repo" | "owner">): string {
+  return `https://github.com/${entry.owner ?? DEFAULT_OWNER}/${entry.repo}`;
+}
+
 /* ---------- repo -> planet ---------- */
 
 const SMALL_WORDS = new Set(["and", "or", "the", "of", "a", "an", "to", "in", "for", "with"]);
@@ -350,8 +357,9 @@ export function buildPlanets(
           repo?.description ??
           `A ${repo?.language ?? "code"} project — open the repo to dig into how it is built.`,
         tech: techFor(entry, repo),
-        // Only link to a repo GitHub actually confirmed.
-        link: repo?.url,
+        // Prefer the URL GitHub returned (canonical casing), falling back to
+        // the one built from the entry so the link is never missing.
+        link: repo?.url ?? repoUrl(entry),
         demo: repo?.homepage?.startsWith("http") ? repo.homepage : undefined,
         stars: repo?.stars ?? 0,
         updatedAt: repo?.pushedAt,
