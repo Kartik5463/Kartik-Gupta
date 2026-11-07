@@ -35,6 +35,37 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   });
 }
 
+/**
+ * Hardening headers on every server response.
+ *
+ * The anti-framing pair is applied only on Vercel: Lovable's editor shows its
+ * preview of this site inside an iframe, and forbidding framing everywhere
+ * would break that preview. A script-level CSP isn't set at all — TanStack
+ * Start inlines its hydration data as <script> tags, so a policy strict enough
+ * to stop XSS would need per-request nonces threaded through the renderer.
+ */
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Isolates the browsing context from cross-origin windows it opens or is
+  // opened by. Ignored when the page is framed, so it can't affect Lovable.
+  headers.set("Cross-Origin-Opener-Policy", "same-origin");
+
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
+  if (env?.["VERCEL"]) {
+    headers.set("X-Frame-Options", "DENY");
+    headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function isH3SwallowedErrorBody(body: string): boolean {
   try {
     const payload = JSON.parse(body) as { unhandled?: unknown; message?: unknown };
@@ -49,13 +80,15 @@ export default {
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      return withSecurityHeaders(await normalizeCatastrophicSsrResponse(response));
     } catch (error) {
       console.error(error);
-      return new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      });
+      return withSecurityHeaders(
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
     }
   },
 };

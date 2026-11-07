@@ -1,6 +1,6 @@
-import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Stars, Sparkles } from "@react-three/drei";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 import {
   BELT_INNER,
@@ -28,7 +28,11 @@ import {
    Everything expensive is sized from one tier decided at mount, so low-end
    phones and laptops get a scene they can actually hold 60fps on. */
 
-type Tier = "low" | "medium" | "high";
+/** "software" is WebGL running on the CPU — no GPU, a blocklisted driver, a
+ *  VM or remote desktop, and also the headless Chrome that PageSpeed Insights
+ *  measures with. Every frame then costs real main-thread time, so it gets the
+ *  lightest scene and a low frame cap. */
+type Tier = "software" | "low" | "medium" | "high";
 
 interface Quality {
   tier: Tier;
@@ -41,9 +45,25 @@ interface Quality {
   sphereSegments: number;
   texSize: number;
   nebula: boolean;
+  /** Frames per second to render at; 0 means uncapped (the display's rate). */
+  maxFps: number;
 }
 
 const QUALITY: Record<Tier, Omit<Quality, "tier">> = {
+  software: {
+    // Below 0.75 the sun and labels turn visibly blocky; above it, fill cost
+    // on a CPU rasterizer starts backing up into the main thread.
+    dpr: [0.75, 0.75],
+    stars: 600,
+    sparkles: 0,
+    asteroids: 50,
+    meteors: 3,
+    ufos: 0,
+    sphereSegments: 16,
+    texSize: 128,
+    nebula: false,
+    maxFps: 20,
+  },
   low: {
     dpr: [1, 1],
     stars: 1200,
@@ -54,6 +74,8 @@ const QUALITY: Record<Tier, Omit<Quality, "tier">> = {
     sphereSegments: 20,
     texSize: 128,
     nebula: false,
+    // Slow orbits look the same at 30fps, for half the battery and heat.
+    maxFps: 30,
   },
   medium: {
     dpr: [1, 1.25],
@@ -65,6 +87,7 @@ const QUALITY: Record<Tier, Omit<Quality, "tier">> = {
     sphereSegments: 28,
     texSize: 256,
     nebula: true,
+    maxFps: 0,
   },
   high: {
     dpr: [1, 1.5],
@@ -76,11 +99,36 @@ const QUALITY: Record<Tier, Omit<Quality, "tier">> = {
     sphereSegments: 40,
     texSize: 256,
     nebula: true,
+    maxFps: 0,
   },
 };
 
-function detectQuality(): Quality {
+/** Which GPU WebGL is really running on — "software" when it's emulated on the
+ *  CPU, "none" when WebGL is unavailable altogether. */
+function probeWebGL(): "gpu" | "software" | "none" {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = (canvas.getContext("webgl2") ?? canvas.getContext("webgl")) as
+      WebGLRenderingContext | WebGL2RenderingContext | null;
+    if (!gl) return "none";
+    const info = gl.getExtension("WEBGL_debug_renderer_info");
+    const renderer = String(
+      gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "",
+    );
+    // Release the probe's context rather than waiting for GC; browsers cap how
+    // many can be alive at once.
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return /swiftshader|llvmpipe|softpipe|software|basic render driver/i.test(renderer)
+      ? "software"
+      : "gpu";
+  } catch {
+    return "gpu";
+  }
+}
+
+function detectQuality(webgl: ReturnType<typeof probeWebGL>): Quality {
   if (typeof window === "undefined") return { tier: "medium", ...QUALITY.medium };
+  if (webgl === "software") return { tier: "software", ...QUALITY.software };
   const cores = navigator.hardwareConcurrency ?? 4;
   const coarse = window.matchMedia("(pointer: coarse)").matches;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1096,11 +1144,160 @@ function Nebula({ glowTex }: { glowTex: THREE.Texture }) {
   );
 }
 
+/**
+ * Caps the frame rate by driving R3F's on-demand loop: the canvas only renders
+ * when invalidated, and this invalidates at most `fps` times a second. Between
+ * frames the main thread is genuinely free, which an uncapped loop on a slow
+ * device never allows.
+ */
+function FrameLimiter({ fps }: { fps: number }) {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    const interval = 1000 / fps;
+    let last = 0;
+    let raf = requestAnimationFrame(function tick(now) {
+      raf = requestAnimationFrame(tick);
+      // A little slack so a 60Hz display hits 30fps evenly instead of jittering.
+      if (now - last >= interval - 2) {
+        last = now;
+        invalidate();
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [fps, invalidate]);
+  return null;
+}
+
+/**
+ * Mounts the scene a stage at a time, one per idle callback.
+ *
+ * Building all ~150 objects (geometries, materials, canvas-drawn textures) in
+ * one React commit was a single multi-second task on a throttled phone, and
+ * the page can't respond to input for any of it. Spread over idle callbacks,
+ * each stage is short, and input gets handled in between. On a fast machine
+ * the whole thing still finishes within a few frames.
+ */
+function StagedMount({ stages, onMounted }: { stages: ReactNode[]; onMounted: () => void }) {
+  const [count, setCount] = useState(1);
+  useEffect(() => {
+    if (count >= stages.length) {
+      onMounted();
+      return;
+    }
+    const w = window as IdleWindow;
+    const next = () => setCount((c) => c + 1);
+    // The timeout keeps it moving even if the browser never goes fully idle.
+    if (w.requestIdleCallback) {
+      const handle = w.requestIdleCallback(next, { timeout: 120 });
+      return () => w.cancelIdleCallback?.(handle);
+    }
+    const handle = window.setTimeout(next, 16);
+    return () => window.clearTimeout(handle);
+  }, [count, stages.length, onMounted]);
+
+  return (
+    <>
+      {stages.slice(0, count).map((stage, i) => (
+        <Fragment key={i}>{stage}</Fragment>
+      ))}
+    </>
+  );
+}
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+  cancelIdleCallback?: (handle: number) => void;
+};
+
+/**
+ * Compiles every shader in the scene before the first frame, without blocking.
+ *
+ * Left to itself, three.js compiles shaders on the first render and then reads
+ * back each program's link status synchronously — the main thread sits frozen
+ * until the GPU process has compiled the lot, which profiled as the single
+ * largest stall in the page. `compileAsync` starts the same work but polls for
+ * completion (via KHR_parallel_shader_compile), so the page stays responsive
+ * and rendering begins once everything is ready.
+ *
+ * Effects run after the whole tree has committed, so by now every object is
+ * attached to the scene. Objects that start invisible (the shockwave) are
+ * skipped by three and compile on first use instead.
+ */
+function Precompile({ onReady }: { onReady: () => void }) {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  useEffect(() => {
+    let cancelled = false;
+    const done = () => {
+      if (!cancelled) onReady();
+    };
+    // On failure, fall back to rendering anyway: three compiles on demand.
+    gl.compileAsync(scene, camera).then(done, done);
+    return () => {
+      cancelled = true;
+    };
+  }, [gl, scene, camera, onReady]);
+  return null;
+}
+
 export default function SpaceScene() {
   const planets = useSpace((s) => s.planets);
-  const q = useMemo(detectQuality, []);
+  const webgl = useMemo(probeWebGL, []);
+  const q = useMemo(() => detectQuality(webgl), [webgl]);
   const glowTex = useMemo(makeGlowTexture, []);
   useScrollTracking();
+
+  // Held at "never" until the whole scene is mounted and every shader is ready.
+  const [mounted, setMounted] = useState(false);
+  const onMounted = useCallback(() => setMounted(true), []);
+  const [compiled, setCompiled] = useState(false);
+  const onCompiled = useCallback(() => setCompiled(true), []);
+
+  // The scene in the order it gets built: what you look at first comes first.
+  // Built once per input change, so already-mounted stages keep the same
+  // element identity and React skips re-rendering them as later ones arrive.
+  const stages = useMemo<ReactNode[]>(
+    () => [
+      <>
+        <SceneLights />
+        <Stars
+          radius={120}
+          depth={60}
+          count={q.stars}
+          factor={4}
+          saturation={0.2}
+          fade
+          speed={0.6}
+        />
+        <Sun glowTex={glowTex} q={q} />
+        <CameraRig planets={planets} />
+      </>,
+      ...planets.map((p, i) => <Planet key={p.id} p={p} index={i} glowTex={glowTex} q={q} />),
+      <AsteroidBelt count={q.asteroids} />,
+      <BlackHole glowTex={glowTex} q={q} />,
+      <Wormhole q={q} />,
+      <>
+        <Meteors count={q.meteors} />
+        <Shockwave glowTex={glowTex} />
+        {q.nebula && <Nebula glowTex={glowTex} />}
+        {q.sparkles > 0 && (
+          <Sparkles
+            count={q.sparkles}
+            scale={[40, 10, 40]}
+            size={2}
+            speed={0.2}
+            opacity={0.5}
+            color="#ffe2a8"
+          />
+        )}
+      </>,
+      ...Array.from({ length: q.ufos }, (_, i) => (
+        <UFO key={i} seed={i + 1} glowTex={glowTex} q={q} />
+      )),
+    ],
+    [planets, q, glowTex],
+  );
 
   // Stop rendering entirely while the tab is in the background.
   const [running, setRunning] = useState(true);
@@ -1110,9 +1307,12 @@ export default function SpaceScene() {
     return () => document.removeEventListener("visibilitychange", sync);
   }, []);
 
+  // No WebGL at all: leave the plain backdrop rather than let the canvas throw.
+  if (webgl === "none") return null;
+
   return (
     <Canvas
-      frameloop={running ? "always" : "never"}
+      frameloop={!running || !compiled ? "never" : q.maxFps ? "demand" : "always"}
       camera={{ position: [12, 5, 16], fov: 50, near: 0.1, far: 500 }}
       dpr={q.dpr}
       raycaster={{ layers: RAYCAST_LAYERS }}
@@ -1122,32 +1322,9 @@ export default function SpaceScene() {
       onPointerMissed={() => spaceStore.set({ selected: null })}
     >
       <color attach="background" args={["#05060f"]} />
-      <SceneLights />
-      <Stars radius={120} depth={60} count={q.stars} factor={4} saturation={0.2} fade speed={0.6} />
-      {q.sparkles > 0 && (
-        <Sparkles
-          count={q.sparkles}
-          scale={[40, 10, 40]}
-          size={2}
-          speed={0.2}
-          opacity={0.5}
-          color="#ffe2a8"
-        />
-      )}
-      {q.nebula && <Nebula glowTex={glowTex} />}
-      <BlackHole glowTex={glowTex} q={q} />
-      <Wormhole q={q} />
-      <Meteors count={q.meteors} />
-      <Sun glowTex={glowTex} q={q} />
-      <Shockwave glowTex={glowTex} />
-      {planets.map((p, i) => (
-        <Planet key={p.id} p={p} index={i} glowTex={glowTex} q={q} />
-      ))}
-      <AsteroidBelt count={q.asteroids} />
-      {Array.from({ length: q.ufos }, (_, i) => (
-        <UFO key={i} seed={i + 1} glowTex={glowTex} q={q} />
-      ))}
-      <CameraRig planets={planets} />
+      {running && compiled && q.maxFps > 0 && <FrameLimiter fps={q.maxFps} />}
+      <StagedMount stages={stages} onMounted={onMounted} />
+      {mounted && <Precompile onReady={onCompiled} />}
     </Canvas>
   );
 }
