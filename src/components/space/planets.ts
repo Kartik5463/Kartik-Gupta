@@ -248,12 +248,14 @@ export const FEATURED: Featured[] = [
     tech: ["JavaScript", "React", "Audio API"],
   },
   {
-    repo: "Bookify_Project",
-    name: "Bookify",
-    tagline: "Book Discovery App",
+    // PayPal AI Hackathon team repo, under the team's org.
+    repo: "Veriflow",
+    owner: "3Bit-Crew",
+    name: "Veriflow",
+    tagline: "AI-Verified Escrow on PayPal",
     description:
-      "A book-lover's app built with React Router DOM for seamless navigation and Zustand for lightweight, predictable state management.",
-    tech: ["React", "React Router", "Zustand"],
+      "AI-verified escrow on PayPal: AI turns a job into a checklist, PayPal holds the payment, and automated checkers verify the GitHub pull request or live website before the payment is captured or voided. Built with my team for the PayPal AI Hackathon.",
+    tech: ["React", "Node.js", "MongoDB", "Gemini", "Playwright", "PayPal API"],
   },
   {
     // Hack@BVP team repo, under the team's org rather than the personal account.

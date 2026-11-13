@@ -360,11 +360,9 @@ describe("buildPlanets", () => {
   });
 
   it("ignores a blank homepage instead of offering an empty demo link", () => {
-    const planets = buildPlanets(
-      pickFeaturedRepos([repo({ name: "Bookify_Project", homepage: "" })])!,
-    );
+    const planets = buildPlanets(pickFeaturedRepos([repo({ name: "Musico", homepage: "" })])!);
 
-    expect(planets.find((p) => p.id === "bookify_project")!.demo).toBeUndefined();
+    expect(planets.find((p) => p.id === "musico")!.demo).toBeUndefined();
   });
 
   it("passes a real deploy URL through as the demo link", () => {
