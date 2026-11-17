@@ -37,14 +37,14 @@ export const RESUME = {
     ["Languages", "C++, C, Java, Python, JavaScript, SQL (MySQL)"],
     [
       "Web Development",
-      "HTML, CSS, ReactJS, Node.js, Express.js, MongoDB, Socket.io, Tailwind CSS, Chakra UI",
+      "HTML, CSS, ReactJS, Node.js, Express.js, MongoDB, Socket.io, FastAPI, Tailwind CSS, Chakra UI",
     ],
     [
       "CS Fundamentals",
       "Data Structures & Algorithms (C++), DBMS, Operating Systems, Computer Networks, OOP",
     ],
     ["Python Libraries", "Pandas, NumPy, Matplotlib"],
-    ["Tools & Platforms", "Git, GitHub, VS Code"],
+    ["Tools & Platforms", "Git, GitHub, Docker, VS Code"],
   ] as const,
 
   education: {
@@ -55,13 +55,31 @@ export const RESUME = {
 
   projects: [
     {
-      title: "ArtMart",
-      subtitle: "Full-Stack Photography Marketplace",
-      stack: "MERN Stack, Tailwind CSS, JWT Auth, Groq AI (Llama 3.3), ImageKit, Multer",
+      title: "Veriflow",
+      subtitle: "AI-Verified Escrow on PayPal (PayPal AI Hackathon)",
+      stack:
+        "React 19, Node.js/Express, MongoDB, PayPal Orders API v2, Google Gemini, Playwright, AG Grid",
       points: [
-        "Built a full-stack photography marketplace (React 19, Node.js/Express, MongoDB) enabling photographers to upload, list, and sell photos, with JWT-based auth and role-based access control (buyer vs. photographer).",
-        "Architected the backend in a layered pattern (routes → controllers → services → repositories) with a transactional purchase flow coordinating writes across Photo, User, and Transaction collections.",
-        "Integrated AI-assisted seller tools via the Groq API (Llama 3.3 70B) for auto-generated descriptions and pricing, plus an AI image-generation pipeline; handled image hosting with Multer + ImageKit and deployed on Vercel.",
+        "Co-built, in a team of 3, a pay-on-proof escrow service: the PayPal Orders API v2 holds the buyer's payment, which is captured or voided only after automated checks verify the delivered work.",
+        "Google Gemini (with a Groq fallback) turns a plain-English job into a buyer-approved checklist that serves as the contract; checkers verify GitHub pull requests and live websites using Playwright, AI-judged screenshots and Lighthouse.",
+      ],
+    },
+    {
+      title: "Verdikt",
+      subtitle: "Self-Hosted Hackathon Platform (Dogfood Hackathon)",
+      stack: "React, TypeScript, Tailwind CSS, Node.js/Express, MongoDB, Docker",
+      points: [
+        "Co-built, in a team of 3, a platform that runs a hackathon end to end (teams, submissions, judging, results) as three Docker containers started with a single docker compose up.",
+        "Per-event roles enforced in the API, weighted-rubric judging with cross-judge score normalization, and a layered Express API over a MongoDB replica set, covered by 295 HTTP-level tests.",
+      ],
+    },
+    {
+      title: "Sound2Song",
+      subtitle: "YouTube Song Identifier",
+      stack: "React, Tailwind CSS, Node.js/Express, MongoDB, Python, FastAPI, FFmpeg, yt-dlp",
+      points: [
+        "Built a three-service app (React client, Express API, Python FastAPI audio service) that identifies the songs in a YouTube video or uploaded file, with title, artist and the time range each one plays.",
+        "Audio pipeline with yt-dlp and FFmpeg detects silences and song changes, then spends a tight Shazam request budget on the segments most likely to differ; results are cached in MongoDB.",
       ],
     },
     {
@@ -69,9 +87,8 @@ export const RESUME = {
       subtitle: "Real-Time Chat Application",
       stack: "MERN Stack, Socket.io, JWT Auth, Chakra UI, Tailwind CSS, Framer Motion",
       points: [
-        "Built a full-stack real-time chat app (React 19, Node.js/Express, MongoDB) supporting one-on-one and group conversations with JWT-based authentication and bcrypt password hashing.",
-        "Implemented real-time messaging, live typing indicators, and instant delivery via Socket.io with room-based broadcasting, plus message read-receipt tracking.",
-        "Designed group chat management (admin controls, add/remove members) and a responsive, animated UI with Chakra UI, Tailwind CSS, and Framer Motion; deployed on Vercel.",
+        "Built a full-stack real-time chat app (React 19, Node.js/Express, MongoDB) for one-on-one and group conversations, with JWT authentication and bcrypt password hashing.",
+        "Real-time messaging, typing indicators and read receipts via Socket.io room-based broadcasting; group admin controls and an animated UI with Chakra UI and Framer Motion; deployed on Vercel.",
       ],
     },
     {
@@ -79,7 +96,7 @@ export const RESUME = {
       subtitle: "Reddit Sentiment Analyzer",
       stack: "React, Node.js/Express, Tailwind CSS, Sentiment (AFINN), RSS Parsing",
       points: [
-        'Built a real-time dashboard that parses a subreddit\'s RSS feed and scores post sentiment (AFINN) to surface an overall community "vibe," with an animated React/Tailwind UI and per-post breakdowns.',
+        `Real-time dashboard that parses a subreddit's RSS feed and scores post sentiment (AFINN) to surface the community's overall "vibe", with per-post breakdowns.`,
       ],
     },
   ] satisfies ResumeProject[],
@@ -87,8 +104,8 @@ export const RESUME = {
   other: {
     title: "Other Projects & Practice",
     points: [
-      "Data Analysis with Python: Performed data manipulation and visualization using Pandas, NumPy, and Matplotlib to derive insights from structured datasets.",
-      "Consistent DSA Practice: Actively solve algorithmic problems in C++; coding profile available on Codolio (codolio.com/profile/Kartik9696).",
+      "Data analysis with Python: data manipulation and visualization using Pandas, NumPy and Matplotlib.",
+      "Consistent DSA practice in C++; coding profile on Codolio (codolio.com/profile/Kartik9696).",
     ],
   },
 

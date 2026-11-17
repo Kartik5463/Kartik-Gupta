@@ -202,7 +202,7 @@ export const FEATURED: Featured[] = [
     tagline: "YouTube Song Identifier",
     description:
       "Paste any YouTube link and it identifies the songs playing in it — returning the title, artist and the timestamps where each one appears.",
-    tech: ["JavaScript", "YouTube API", "Audio Fingerprinting"],
+    tech: ["React", "Node.js", "Python", "FastAPI", "FFmpeg"],
   },
   {
     repo: "ArtMart",

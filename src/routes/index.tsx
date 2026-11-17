@@ -24,7 +24,7 @@ import { PrintResume } from "@/components/resume/PrintResume";
 
 const SpaceScene = lazy(() => import("@/components/space/SpaceScene"));
 const RESUME_URL =
-  "https://drive.google.com/file/d/18wDydnAxDdXmOofp9OW0JsO5-r9HS4yt/view?usp=sharing";
+  "https://drive.google.com/file/d/1H6dC120yc47fPj5QaPdh4vGU4RxG4HVH/view?usp=sharing";
 
 function RocketCursor() {
   const cursorRef = useRef<HTMLDivElement>(null);
