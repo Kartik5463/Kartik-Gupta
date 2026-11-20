@@ -10,6 +10,7 @@ import {
   type ProjectPlanet,
 } from "./planets";
 import { spaceStore, useSpace } from "./store";
+import { initialDprState, nextDpr } from "./adaptiveDpr";
 import {
   easeInCubic,
   WAVE_SPEED,
@@ -65,20 +66,22 @@ const QUALITY: Record<Tier, Omit<Quality, "tier">> = {
     maxFps: 20,
   },
   low: {
-    dpr: [1, 1],
+    // Up to 2x so text-sharp on phone screens (which are 2-3x dense); the
+    // adaptive controller lowers it on phones that can't hold the frame rate.
+    dpr: [1, 2],
     stars: 1200,
     sparkles: 0,
     asteroids: 90,
     meteors: 5,
     ufos: 1,
-    sphereSegments: 20,
-    texSize: 128,
+    // At 2x, low-poly silhouettes and soft textures become visible.
+    sphereSegments: 32,
+    texSize: 256,
     nebula: false,
-    // Slow orbits look the same at 30fps, for half the battery and heat.
-    maxFps: 30,
+    maxFps: 0,
   },
   medium: {
-    dpr: [1, 1.25],
+    dpr: [1, 2],
     stars: 2400,
     sparkles: 40,
     asteroids: 200,
@@ -90,7 +93,7 @@ const QUALITY: Record<Tier, Omit<Quality, "tier">> = {
     maxFps: 0,
   },
   high: {
-    dpr: [1, 1.5],
+    dpr: [1, 2],
     stars: 3600,
     sparkles: 70,
     asteroids: 320,
@@ -1145,6 +1148,35 @@ function Nebula({ glowTex }: { glowTex: THREE.Texture }) {
 }
 
 /**
+ * Adjusts render resolution to what the device can sustain, re-evaluated every
+ * second. The decisions live in adaptiveDpr.ts (and its tests); this only
+ * measures frame rate and applies the result.
+ */
+function AdaptiveResolution({ min, max }: { min: number; max: number }) {
+  const setDpr = useThree((s) => s.setDpr);
+  const startDpr = useThree((s) => s.viewport.dpr);
+  const state = useRef(initialDprState(startDpr, min, max));
+  const win = useRef({ frames: 0, time: 0 });
+
+  useFrame((_, delta) => {
+    // A long gap is a hidden tab or a one-off stall, not the device's speed.
+    if (delta > 0.25) {
+      win.current = { frames: 0, time: 0 };
+      return;
+    }
+    const w = win.current;
+    w.frames++;
+    w.time += delta;
+    if (w.time < 1) return;
+    const next = nextDpr(state.current, w.frames / w.time);
+    win.current = { frames: 0, time: 0 };
+    if (next.dpr !== state.current.dpr) setDpr(next.dpr);
+    state.current = next;
+  });
+  return null;
+}
+
+/**
  * Caps the frame rate by driving R3F's on-demand loop: the canvas only renders
  * when invalidated, and this invalidates at most `fps` times a second. Between
  * frames the main thread is genuinely free, which an uncapped loop on a slow
@@ -1245,6 +1277,8 @@ export default function SpaceScene() {
   const planets = useSpace((s) => s.planets);
   const webgl = useMemo(probeWebGL, []);
   const q = useMemo(() => detectQuality(webgl), [webgl]);
+  // Rendering past the screen's own density costs pixels nobody can see.
+  const maxDpr = Math.max(q.dpr[0], Math.min(q.dpr[1], window.devicePixelRatio || 1));
   const glowTex = useMemo(makeGlowTexture, []);
   useScrollTracking();
 
@@ -1323,6 +1357,9 @@ export default function SpaceScene() {
     >
       <color attach="background" args={["#05060f"]} />
       {running && compiled && q.maxFps > 0 && <FrameLimiter fps={q.maxFps} />}
+      {running && compiled && q.tier !== "software" && (
+        <AdaptiveResolution min={q.dpr[0]} max={maxDpr} />
+      )}
       <StagedMount stages={stages} onMounted={onMounted} />
       {mounted && <Precompile onReady={onCompiled} />}
     </Canvas>

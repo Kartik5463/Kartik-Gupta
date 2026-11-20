@@ -127,6 +127,18 @@
   box-shadow: 0 12px 48px -16px oklch(0 0 0 / 55%);
 }
 
+/* On phones the live blur is swapped for an equivalent solid tint. A blurred
+   panel has to be recomputed every time the 3D scene behind it draws a frame,
+   which mobile GPUs feel as stutter while scrolling. Plain CSS rather than part
+   of the utility, so it wins over Tailwind's layered utilities. */
+@media (pointer: coarse) {
+  .glass-panel {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: color-mix(in oklab, var(--background) 88%, transparent);
+  }
+}
+
 /* Same look without backdrop-filter, for the cards that repeat.
    Every blurred region has to be re-composited whenever the WebGL canvas
    behind it draws a frame, so ~20 of them tanked the frame rate; these use a
