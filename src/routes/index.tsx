@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import {
   Code2,
   Briefcase,
-  Terminal,
+  Terminal as TerminalIcon,
   Mail,
   ArrowDown,
   Orbit,
@@ -21,10 +21,22 @@ import { ProjectPanel } from "@/components/space/ProjectPanel";
 import { useCodolioStats, useProjects } from "@/components/space/useLiveData";
 import { overlayVars, PHASE } from "@/components/space/destruction";
 import { PrintResume } from "@/components/resume/PrintResume";
+import { Terminal, TerminalConsole } from "@/components/terminal/Terminal";
+import type { TermContext, TermEffect, TermLine } from "@/components/terminal/engine";
+import { ActivityHeatmap } from "@/components/sections/ActivityHeatmap";
+import { SKILL_GROUPS } from "@/components/content/skills";
 
 const SpaceScene = lazy(() => import("@/components/space/SpaceScene"));
 const RESUME_URL =
   "https://drive.google.com/file/d/1H6dC120yc47fPj5QaPdh4vGU4RxG4HVH/view?usp=sharing";
+const EMAIL = "kg9818630@gmail.com";
+
+// What the Contact section's terminal shows before anyone types.
+const INLINE_INTRO: TermLine[] = [
+  { text: "Kartik Gupta", tone: "accent" },
+  { text: "Full-stack developer & competitive programmer." },
+  { text: "This terminal is real. Type help — or try: open veriflow", tone: "muted" },
+];
 
 function RocketCursor() {
   const cursorRef = useRef<HTMLDivElement>(null);
@@ -227,7 +239,7 @@ export const Route = createFileRoute("/")({
 const SOCIALS = [
   { label: "GitHub", href: PROFILE.links.github, Icon: Code2 },
   { label: "LinkedIn", href: PROFILE.links.linkedin, Icon: Briefcase },
-  { label: "LeetCode", href: PROFILE.links.leetcode, Icon: Terminal },
+  { label: "LeetCode", href: PROFILE.links.leetcode, Icon: TerminalIcon },
   { label: "Codolio", href: PROFILE.links.codolio, Icon: Orbit },
 ];
 
@@ -251,6 +263,87 @@ function Index() {
   useEffect(() => {
     spaceStore.set({ planets });
   }, [planets]);
+
+  /* ---- the terminal ---- */
+  const [consoleOpen, setConsoleOpen] = useState(false);
+  // Commands read the latest data without re-creating the terminal.
+  const latest = useRef({ planets, s, destroying });
+  latest.current = { planets, s, destroying };
+
+  const getContext = useCallback((): TermContext => {
+    const { planets: ps, s: st } = latest.current;
+    return {
+      projects: ps.map((p) => ({
+        id: p.id,
+        name: p.name,
+        tagline: p.tagline,
+        link: p.link,
+        demo: p.demo,
+      })),
+      stats: {
+        questionsSolved: st.questionsSolved,
+        leetcodeRating: st.leetcodeRating,
+        activeDays: st.activeDays,
+        maxStreak: st.maxStreak,
+        contests: st.contests,
+        live: st.live,
+      },
+      skills: SKILL_GROUPS,
+      links: {
+        github: PROFILE.links.github,
+        linkedin: PROFILE.links.linkedin,
+        leetcode: PROFILE.links.leetcode,
+        codolio: PROFILE.links.codolio,
+        resume: RESUME_URL,
+        email: EMAIL,
+      },
+      now: new Date(),
+    };
+  }, []);
+
+  const handleEffect = useCallback(
+    (e: TermEffect) => {
+      switch (e.type) {
+        case "select":
+          spaceStore.set({ selected: e.id });
+          break;
+        case "open":
+          window.open(e.url, "_blank", "noopener,noreferrer");
+          break;
+        case "destroy":
+          if (!latest.current.destroying) startDestruction();
+          break;
+        case "close":
+          setConsoleOpen(false);
+          break;
+        case "scroll":
+          document.getElementById(e.to)?.scrollIntoView({ behavior: "smooth" });
+          break;
+        case "clear":
+          break;
+      }
+    },
+    [startDestruction],
+  );
+
+  // The backtick key (or ~) and Ctrl/Cmd+K open the console from anywhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setConsoleOpen((o) => !o);
+        return;
+      }
+      const t = e.target as HTMLElement | null;
+      if (t?.closest("input, textarea, select, [contenteditable]")) return;
+      if (e.key === "`" || e.key === "~") {
+        e.preventDefault();
+        setConsoleOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
     <>
@@ -285,14 +378,26 @@ function Index() {
                 </a>
               ))}
             </div>
-            <a
-              href={RESUME_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border border-primary/50 px-4 py-2 text-sm text-primary transition hover:bg-primary hover:text-primary-foreground"
-            >
-              Resume ↗
-            </a>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConsoleOpen(true)}
+                className="term-launch"
+                aria-label="Open terminal (shortcut: backtick or Ctrl+K)"
+              >
+                <TerminalIcon className="h-4 w-4" aria-hidden="true" />
+                <span className="hidden lg:inline">Terminal</span>
+                <kbd className="hidden lg:inline">`</kbd>
+              </button>
+              <a
+                href={RESUME_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-primary/50 px-4 py-2 text-sm text-primary transition hover:bg-primary hover:text-primary-foreground"
+              >
+                Resume ↗
+              </a>
+            </div>
           </nav>
         </header>
 
@@ -535,7 +640,7 @@ function Index() {
                   rel="noreferrer"
                   className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition hover:bg-accent"
                 >
-                  <Terminal className="h-4 w-4" /> LeetCode profile{" "}
+                  <TerminalIcon className="h-4 w-4" /> LeetCode profile{" "}
                   <ArrowUpRight className="h-4 w-4" />
                 </a>
               </div>
@@ -553,6 +658,16 @@ function Index() {
                     <div className="mt-1 text-sm text-muted-foreground">{l}</div>
                   </div>
                 ))}
+              </div>
+
+              <div className="pe panel mt-4 rounded-2xl p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-semibold">Mission log · the last 12 months</h3>
+                  <p className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+                    Daily submissions · LeetCode + GeeksforGeeks
+                  </p>
+                </div>
+                <ActivityHeatmap calendar={s.calendar} />
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -667,60 +782,38 @@ function Index() {
                   ))}
                 </div>
               </div>
-              <div className="overflow-hidden rounded-xl border border-foreground/15 bg-[#080b12] font-mono text-sm shadow-[8px_8px_0_color-mix(in_oklab,var(--foreground)_35%,transparent)]">
-                <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-4 py-3">
-                  <div className="flex gap-2" aria-hidden="true">
-                    <span className="h-3 w-3 rounded-full bg-destructive" />
-                    <span className="h-3 w-3 rounded-full bg-primary" />
-                    <span className="h-3 w-3 rounded-full bg-aurora" />
-                  </div>
-                  <span className="text-xs text-muted-foreground">kartik@space: ~</span>
+              <div className="pe term-window">
+                <div className="term-window__bar">
+                  <span className="term-console__dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span>kartik@space: ~</span>
                 </div>
-                <div className="space-y-5 p-5 text-sm md:p-6">
-                  <div>
-                    <p>
-                      <span className="mr-3 text-primary">$</span>whoami
-                    </p>
-                    <p className="mt-1 pl-5 text-aurora">→ Kartik Gupta</p>
-                  </div>
-                  <div>
-                    <p>
-                      <span className="mr-3 text-primary">$</span>cat focus.txt
-                    </p>
-                    <p className="mt-1 pl-5 text-aurora">
-                      → Full-stack development &amp; problem solving
-                    </p>
-                  </div>
-                  <div>
-                    <p>
-                      <span className="mr-3 text-primary">$</span>ls ~/projects
-                    </p>
-                    <p className="mt-1 pl-5 text-aurora">
-                      →{" "}
-                      {planets
-                        .slice(0, 3)
-                        .map((p) => p.name.toLowerCase().replaceAll(" ", "-"))
-                        .join("  ")}
-                    </p>
-                  </div>
-                  <div>
-                    <p>
-                      <span className="mr-3 text-primary">$</span>cat approach.txt
-                    </p>
-                    <p className="mt-1 pl-5 text-aurora">→ Build with curiosity. Keep learning.</p>
-                  </div>
-                  <p className="text-primary">
-                    ${" "}
-                    <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-primary align-middle" />
-                  </p>
-                </div>
+                <Terminal
+                  getContext={getContext}
+                  onEffect={handleEffect}
+                  intro={INLINE_INTRO}
+                  className="term--inline"
+                />
               </div>
             </div>
             <p className="mx-auto mt-8 max-w-6xl text-center font-mono text-xs text-muted-foreground">
               © {new Date().getFullYear()} Kartik Gupta · Crafted among the stars
+              <span className="hidden md:inline">
+                {" "}
+                · press <kbd className="kbd">`</kbd> for the terminal
+              </span>
             </p>
           </section>
         </main>
+        <TerminalConsole
+          open={consoleOpen}
+          onClose={() => setConsoleOpen(false)}
+          getContext={getContext}
+          onEffect={handleEffect}
+        />
       </div>
       <PrintResume />
     </>

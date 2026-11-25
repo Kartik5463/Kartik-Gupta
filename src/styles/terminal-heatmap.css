@@ -1,0 +1,289 @@
+/*
+ * The terminal (inline in Contact, and the drop-down console) and the
+ * activity heatmap in Stats. Static: no animations or transitions.
+ */
+
+/* ---------- shared bits ---------- */
+
+.kbd,
+.term-console__close kbd {
+  display: inline-grid;
+}
+.kbd,
+.term-launch kbd,
+.term-console__close kbd {
+  place-items: center;
+  min-width: 1.35em;
+  padding: 0 0.35em;
+  border: 1px solid color-mix(in oklab, var(--foreground) 25%, transparent);
+  border-bottom-width: 2px;
+  border-radius: 0.3em;
+  font: 600 0.75em/1.5 var(--font-mono);
+  color: var(--foreground);
+}
+
+/* ---------- terminal ---------- */
+
+.term {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font: 400 13px/1.55 var(--font-mono);
+  color: color-mix(in oklab, var(--foreground) 88%, transparent);
+}
+.term__screen {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem 1.1rem 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+}
+.term__line {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.term__line a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+  text-underline-offset: 3px;
+}
+.term__line--ok {
+  color: var(--aurora);
+}
+.term__line--err {
+  color: oklch(0.72 0.17 25);
+}
+.term__line--accent {
+  color: var(--primary);
+}
+.term__line--muted {
+  color: var(--muted-foreground);
+}
+.term__line--art {
+  color: var(--primary);
+  line-height: 1;
+  text-shadow: 0 0 12px color-mix(in oklab, var(--primary) 45%, transparent);
+}
+.term__line--cmd {
+  color: var(--foreground);
+}
+.term__prompt {
+  color: var(--primary);
+  white-space: nowrap;
+}
+.term__input {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.5rem 1.1rem 1rem;
+}
+.term__input input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  color: var(--foreground);
+  background: transparent;
+  caret-color: var(--aurora);
+}
+.term--inline {
+  height: 22rem;
+}
+.term--console {
+  flex: 1;
+}
+
+.term-window {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--foreground) 15%, transparent);
+  border-radius: 0.85rem;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 2px,
+      color-mix(in oklab, var(--foreground) 2.5%, transparent) 2px 3px
+    ),
+    #080b12;
+  box-shadow:
+    8px 8px 0 color-mix(in oklab, var(--foreground) 30%, transparent),
+    0 0 60px -20px color-mix(in oklab, var(--aurora) 35%, transparent);
+}
+.term-window__bar,
+.term-console__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.035);
+  font: 500 12px/1 var(--font-mono);
+  color: var(--muted-foreground);
+}
+.term-console__dots {
+  display: inline-flex;
+  gap: 0.45rem;
+}
+.term-console__dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--destructive);
+}
+.term-console__dots i:nth-child(2) {
+  background: var(--primary);
+}
+.term-console__dots i:nth-child(3) {
+  background: var(--aurora);
+}
+
+/* the drop-down console */
+.term-console {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+.term-console__panel {
+  display: flex;
+  flex-direction: column;
+  height: min(68vh, 34rem);
+  border-bottom: 1px solid color-mix(in oklab, var(--aurora) 40%, transparent);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 2px,
+      color-mix(in oklab, var(--foreground) 2.5%, transparent) 2px 3px
+    ),
+    color-mix(in oklab, #060912 96%, transparent);
+  box-shadow: 0 24px 80px -10px rgb(0 0 0 / 0.75);
+}
+.term-console__close {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.35em 0.7em;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+}
+.term-console__close:hover {
+  color: var(--foreground);
+}
+.term-console__backdrop {
+  flex: 1;
+  background: rgb(2 4 10 / 0.55);
+}
+
+/* the nav button that opens it */
+.term-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--aurora) 45%, transparent);
+  border-radius: 999px;
+  font: 500 13px/1 var(--font-mono);
+  color: var(--aurora);
+  background: color-mix(in oklab, var(--background) 60%, transparent);
+}
+.term-launch:hover {
+  color: var(--background);
+  background: var(--aurora);
+}
+
+/* ---------- activity heatmap ---------- */
+
+.heatmap {
+  --cell: 11px;
+  --gap: 3px;
+  margin-top: 1.25rem;
+}
+.heatmap__scroller {
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+  scrollbar-width: thin;
+}
+.heatmap__grid {
+  display: grid;
+  gap: 0.4rem;
+  /* never narrower than one --cell per week; stretches to fill wider cards */
+  min-width: calc(53 * (var(--cell) + var(--gap)));
+}
+.heatmap__months,
+.heatmap__cells {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(var(--cell), 1fr);
+  column-gap: var(--gap);
+}
+.heatmap__months span {
+  font: 500 10px/1 var(--font-mono);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.heatmap__cells {
+  row-gap: var(--gap);
+}
+.heatmap__cells i {
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 3px;
+}
+.heatmap__legend i {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+/* Aurora: one smooth ramp from deep teal to glowing mint, like the northern
+   lights over the dark sky. Each step is brighter and greener, so the busiest
+   days read at a glance; only the top step glows. All static, no animation. */
+.hm-l0 {
+  background: rgb(255 255 255 / 4%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 5%);
+}
+.hm-l1 {
+  background: #0e3b4a;
+  box-shadow: inset 0 0 0 1px rgb(45 212 191 / 18%);
+}
+.hm-l2 {
+  background: #0f766e;
+}
+.hm-l3 {
+  background: #2dd4bf;
+}
+.hm-l4 {
+  background: #b5ffe4;
+  box-shadow:
+    0 0 6px rgb(94 255 200 / 70%),
+    0 0 12px rgb(45 212 191 / 35%);
+}
+.heatmap__legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 0.6rem;
+  font: 500 10px/1 var(--font-mono);
+  color: var(--muted-foreground);
+}
+.heatmap--waiting {
+  display: flex;
+  align-items: center;
+  min-height: 7rem;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+@media (min-width: 1024px) {
+  .heatmap {
+    --cell: 13px;
+  }
+}

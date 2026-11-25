@@ -6,7 +6,7 @@
 // booting the 3D scene.
 import { useEffect, useState } from "react";
 import { getCodolioStats } from "./codolio.functions";
-import { type CodolioLiveStats } from "./liveData.parse";
+import { type ActivityCalendar, type CodolioLiveStats } from "./liveData.parse";
 import { getFeaturedRepos } from "./github.functions";
 import {
   buildPlanets,
@@ -122,12 +122,15 @@ export interface Stats {
   maxStreak: number;
   activeDays: number;
   topics: { name: string; count: number }[];
+  /** A year of daily submissions, once live data has arrived. */
+  calendar: ActivityCalendar | null;
   live: boolean;
 }
 
 const statsFallback: Stats = {
   ...PROFILE.stats,
   topics: PROFILE.topics,
+  calendar: null,
   live: false,
 };
 
@@ -145,12 +148,15 @@ function toStats(live: CodolioLiveStats): Stats {
     maxStreak: live.maxStreak || statsFallback.maxStreak,
     activeDays: live.activeDays || statsFallback.activeDays,
     topics: live.topics.length ? live.topics : statsFallback.topics,
+    // Absent from payloads cached before the heatmap existed.
+    calendar: live.calendar?.counts?.length ? live.calendar : null,
     live: true,
   };
 }
 
 export function useCodolioStats(): Stats {
-  return useLive("codolio-live-stats-v2", getCodolioStats, toStats, statsFallback);
+  // v3: payloads gained `calendar` for the activity heatmap.
+  return useLive("codolio-live-stats-v3", getCodolioStats, toStats, statsFallback);
 }
 
 /* ---------- GitHub ---------- */

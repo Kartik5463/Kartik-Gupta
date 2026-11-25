@@ -20,7 +20,35 @@ export interface CodolioLiveStats {
   maxStreak: number;
   profileViews: number;
   topics: { name: string; count: number }[];
+  /** Submissions per day for the last year, for the activity heatmap. */
+  calendar: ActivityCalendar;
   fetchedAt: number;
+}
+
+/**
+ * A year of daily submission counts. `start` is a Sunday (UTC) and `counts`
+ * runs day by day from it through today, so the client can lay it out in week
+ * columns without any date arithmetic of its own.
+ */
+export interface ActivityCalendar {
+  start: string;
+  counts: number[];
+}
+
+/** Lays merged per-day counts out as the last 52 full weeks plus this one. */
+export function calendarFrom(perDay: Map<number, number>, now: number): ActivityCalendar {
+  // Codolio keys days by their UTC midnight; normalise in case one isn't.
+  const byDay = new Map<number, number>();
+  for (const [ts, count] of perDay) {
+    const day = Math.floor(ts / DAY_SECONDS) * DAY_SECONDS;
+    byDay.set(day, (byDay.get(day) ?? 0) + count);
+  }
+  const today = Math.floor(now / 1000 / DAY_SECONDS) * DAY_SECONDS;
+  const weekday = new Date(today * 1000).getUTCDay(); // 0 = Sunday
+  const start = today - (52 * 7 + weekday) * DAY_SECONDS;
+  const counts: number[] = [];
+  for (let t = start; t <= today; t += DAY_SECONDS) counts.push(byDay.get(t) ?? 0);
+  return { start: new Date(start * 1000).toISOString().slice(0, 10), counts };
 }
 
 export interface CodolioPlatform {
@@ -72,7 +100,7 @@ function activityFrom(platforms: CodolioPlatform[]) {
   }
   let submissions = 0;
   for (const count of perDay.values()) submissions += count;
-  return { activeDays: days.length, maxStreak, submissions };
+  return { activeDays: days.length, maxStreak, submissions, perDay };
 }
 
 /** Top DSA topics, taken from LeetCode only — the GFG tag names are too noisy. */
@@ -115,7 +143,7 @@ export function parseCodolioProfile(
     contests += p.contestActivityStats?.contestActivityList?.length ?? 0;
   }
 
-  const { activeDays, maxStreak, submissions } = activityFrom(platforms);
+  const { activeDays, maxStreak, submissions, perDay } = activityFrom(platforms);
 
   return {
     questionsSolved,
@@ -130,6 +158,7 @@ export function parseCodolioProfile(
     maxStreak,
     profileViews: json.data?.profileViews ?? 0,
     topics: topicsFrom(leetcode),
+    calendar: calendarFrom(perDay, now),
     fetchedAt: now,
   };
 }
